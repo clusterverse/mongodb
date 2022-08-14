@@ -1,0 +1,55 @@
+---
+
+compatibility_matrix:
+  "3.4":
+    ubuntu: "{{_ubuntu1604image}}"
+    mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools', 'mongodb-org-shell']    # add 'mongodb-org-mongos' (for sharded clusters)
+    pymongo_version: "3.12.3"
+  "3.6":
+    ubuntu: "{{_ubuntu1804image}}"
+    mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools', 'mongodb-org-shell']
+    pymongo_version: "3.12.3"
+  "4.0":
+    ubuntu: "{{_ubuntu1804image}}"
+    mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools', 'mongodb-org-shell']
+  "4.2":
+    ubuntu: "{{_ubuntu1804image}}"
+    mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools', 'mongodb-org-shell']
+  "4.4":
+    ubuntu: "{{_ubuntu2004image}}"
+    mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
+  "5.0":
+    ubuntu: "{{_ubuntu2004image}}"
+    mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
+  "6.0":
+    ubuntu: "{{_ubuntu2004image}}"
+    mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
+
+mongodb:
+  version: "{{ mongo_version | default('6.0.0') }}"
+  sysuser: "mongodb"
+  sysgroup: "mongodb"
+  admin_password: "admin_password"
+  users: []
+  mongod_conf:
+    storage:
+      dbPath: /var/lib/mongodb
+    systemLog:
+      destination: file
+      logAppend: true
+      logRotate: reopen
+      path: /var/log/mongodb/mongod.log
+    replication:
+      replSetName: "s0"
+    net:
+      port: 27017
+      bindIp: 0.0.0.0
+      ssl:
+        mode: "preferSSL"
+        PEMKeyFile: "/etc/ssl/mongodb/mongodb.pem"
+        CAFile: "/etc/ssl/mongodb/ca.pem"
+        allowConnectionsWithoutCertificates: true
+#        allowInvalidHostnames: true
+    security:
+      authorization: "enabled"
+      clusterAuthMode: "x509"

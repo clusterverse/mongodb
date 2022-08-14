@@ -1,0 +1,26 @@
+galaxy_info:
+  author: Dougal Seeley
+  description: An Ansible role to deploy the essentials of a highly available mongodb cluster using clusterverse automation
+  company: dougalseeley.com
+
+  license: BSD-3-Clause
+
+  min_ansible_version: 2.17.4
+
+  platforms:
+  - name: Ubuntu
+    versions:
+    - xenial
+    - bionic
+    - focal
+
+  galaxy_tags:
+    - mongodb
+    - database
+    - cluster
+    - high-availability
+    - clusterverse
+    - aws
+
+dependencies: []
+

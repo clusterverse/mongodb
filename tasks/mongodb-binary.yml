@@ -1,0 +1,38 @@
+---
+
+- name: mongodb-binary | Install required packages and libraries
+  become: yes
+  apt:
+    name: ['libcurl4', 'openssl', 'liblzma5', 'gnupg', 'python3-pip']
+    update_cache: yes
+
+- name: mongodb-binary | Install pymongo via pip (you must use pymongo 3.12+ with MongoDB >= 5.0, which is not available with apt in Ubuntu20.04). Note pymongo>3.12.3 is broken too, until https://github.com/ansible-collections/community.mongodb/pull/450/files is in the repo.
+  become: yes
+  pip:
+    name: ['pymongo==3.12.3']
+
+- name: mongodb-binary | Add GPG apt Key
+  become: yes
+  apt_key:
+    url: "https://www.mongodb.org/static/pgp/server-{{mongodb.version | regex_replace('^([0-9])\\.([0-9]*).*', '\\1.\\2')}}.asc"
+    state: present
+
+- name: mongodb-binary | Add Repository
+  become: yes
+  apt_repository:
+    repo: "deb [arch={{ 'amd64' if ansible_architecture == 'x86_64' else 'arm64' if ansible_architecture == 'aarch64' else ansible_architecture }}] https://repo.mongodb.org/apt/{{ansible_distribution|lower}} {{ansible_distribution_release}}/mongodb-org/{{mongodb.version | regex_replace('^([0-9])\\.([0-9]*).*', '\\1.\\2')}} multiverse"
+    state: present
+
+- name: mongodb-binary | Update apt and install mongodb binaries
+  become: yes
+  apt:
+    update_cache: yes
+    name:
+      - "mongodb-org={{mongodb.version}}*"
+      - "mongodb-org-database={{mongodb.version}}*"
+#      - "mongodb-org-database-tools-extra={{mongodb.version}}*"
+#      - "mongodb-org-mongos={{mongodb.version}}*"
+      - "mongodb-org-server={{mongodb.version}}*"
+      - "mongodb-org-shell={{mongodb.version}}*"
+      - "mongodb-org-tools={{mongodb.version}}*"
+    state: present

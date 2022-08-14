@@ -1,0 +1,37 @@
+---
+
+- name: mongodb-repset | check existence and create if needed
+  block:
+    - name: mongodb-repset | get repset status
+      command: "/usr/bin/mongosh --eval 'rs.status()' --quiet"
+      register: r__command_rs_status
+      failed_when: "r__command_rs_status.rc != 0  and  r__command_rs_status.stderr is defined and r__command_rs_status.stderr != 'MongoServerError: no replset config has been received'"
+
+    - name: mongodb-repset | debug rs.status()
+      debug: msg="{{r__command_rs_status}}"
+
+    - debug: msg="Will create replset"
+      when: "r__command_rs_status.rc != 0  and  r__command_rs_status.stderr is defined and r__command_rs_status.stderr == 'MongoServerError: no replset config has been received'"
+
+    - name: mongodb-repset | initialise/create replicaset
+      community.mongodb.mongodb_replicaset:
+#        login_user: "{{ admin_user }}"
+#        login_password: "{{ admin_user_password }}"
+        replica_set: "{{mongodb.mongod_conf.replication.replSetName}}"
+        members: "{{ groups['mongodb'] | map('regex_replace', '^(.*)$', '\\1' + '.' + cluster_vars.dns_user_domain + ':' +  mongodb.mongod_conf.net.port|string) | sort }}"
+      when: "r__command_rs_status.rc != 0  and  r__command_rs_status.stderr is defined and r__command_rs_status.stderr == 'MongoServerError: no replset config has been received'"
+  become: yes
+  delegate_to: "{{ (groups['mongodb'] | sort())[0] }}"
+  run_once: yes
+
+- name: mongodb-repset | get repset status
+  community.mongodb.mongodb_status:
+    replica_set: "{{mongodb.mongod_conf.replication.replSetName}}"
+#    login_user: "{{ admin_user }}"
+#    login_password: "{{ admin_user_password }}"
+    poll: 3
+    interval: 10
+  register: r__mongodb_status
+
+- name: mongodb-repset | debug r__mongodb_status
+  debug: msg="{{r__mongodb_status}}"

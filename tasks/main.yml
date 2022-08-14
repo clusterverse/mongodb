@@ -1,0 +1,20 @@
+---
+
+- name: mongodb | configure the host VM
+  include_tasks:
+    file: mongodb-host-config.yml
+
+- name: mongodb | install the binary
+  include_tasks:
+    file: mongodb-binary.yml
+
+- name: mongodb | configure mongodb
+  include_tasks:
+    file: mongodb-config.yml
+
+- name: mongodb | flush handlers
+  meta: flush_handlers
+
+- name: mongodb | configure mongodb replicaset
+  include_tasks:
+    file: mongodb-replset.yml

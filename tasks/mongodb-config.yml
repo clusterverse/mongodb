@@ -1,0 +1,116 @@
+---
+
+- name: mongodb-config | Change data and log directory ownership (must do after mount because ext4 cannot be mounted with uid/gid options)
+  become: yes
+  file:
+    path: "{{item}}"
+    owner: "{{mongodb.user}}"
+    group: "{{mongodb.group}}"
+    mode: 0755
+  loop:
+    - "{{mongodb.mongod_conf.storage.dbPath}}"
+    - "{{mongodb.mongod_conf.systemLog.path | dirname}}"
+  notify: restart mongodb
+
+
+- name: mongodb-config | Copy monogd.conf
+  become: yes
+  copy:
+    content: "{{ mongodb.mongod_conf | to_yaml }}"
+    dest: "/etc/mongod.conf"
+    force: yes
+  notify: restart mongodb
+
+
+- name: mongodb-config | Copy SSL CA to remote
+  become: yes
+  copy:
+    content: "{{ item.val }}"
+    dest: "{{ item.path }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ mongodb.user }}"
+    group: "{{ mongodb.group }}"
+    force: "{{ 'yes' if recreate_certs is defined and recreate_certs|bool else 'no' }}"
+  no_log: true
+  with_items:
+    - { path: "{{ mongodb.mongod_conf.storage.dbPath }}/ca.crt", val: "{{ssl_ca['ca-crt.pem']}}", mode: '0600' }
+  notify: restart mongodb
+
+
+- name: mongodb-host-config | disable transparent huge pages
+  become: yes
+  copy:
+    content: |
+      [Unit]
+      Description=Disable Transparent Huge Pages
+      
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/bin/env sh -c "echo 'never' > /sys/kernel/mm/transparent_hugepage/enabled && echo 'never' > /sys/kernel/mm/transparent_hugepage/defrag"
+      
+      [Install]
+      WantedBy=multi-user.target
+    dest: "/etc/systemd/system/thp-disable.service"
+    force: yes
+  notify: restart thp-disable.service
+
+
+- name: mongodb-host-config | set basic sysctls
+  become: yes
+  sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    reload: yes
+    sysctl_set: yes
+    state: present
+  with_items:
+    - {name: vm.swappiness,         value: 0}
+    - {name: vm.zone_reclaim_mode,  value: 0}
+    - {name: vm.dirty_ratio,        value: 15}
+    - {name: vm.dirty_background_ratio,  value: 5}
+    - {name: vm.max_map_count,      value: 262144}
+
+- name: mongodb-host-config | set network sysctls
+  become: yes
+  sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    reload: yes
+    sysctl_set: yes
+    state: present
+  with_items:
+    - {name: net.core.somaxconn,                  value: 4096}
+    - {name: net.ipv4.tcp_keepalive_intvl,        value: 30}
+    - {name: net.ipv4.tcp_keepalive_time,         value: 120}
+    - {name: net.ipv4.tcp_keepalive_probes,       value: 6}
+    - {name: net.ipv4.tcp_max_syn_backlog,        value: 4096}
+
+
+- name: mongodb-host-config | Add or modify hard nofile limits for mongodb and wildcard domains
+  become: yes
+  pam_limits:
+    domain: "{{item.domain}}"
+    limit_type: "{{item.limit_type}}"
+    limit_item: "{{item.limit_item}}"
+    value: "{{item.value}}"
+  with_items:
+    - { domain: "*", limit_type: '-', limit_item: 'cpu', value: unlimited }
+    - { domain: "*", limit_type: '-', limit_item: 'nofile', value: 65536 }
+    - { domain: "*", limit_type: '-', limit_item: 'nproc', value: 192276 }
+    - { domain: "*", limit_type: '-', limit_item: 'memlock', value: unlimited }
+    - { domain: "*", limit_type: '-', limit_item: 'fsize', value: unlimited }
+    - { domain: "*", limit_type: '-', limit_item: 'as', value: unlimited }
+    - { domain: "{{mongodb.user}}", limit_type: '-', limit_item: 'cpu', value: unlimited }
+    - { domain: "{{mongodb.user}}", limit_type: '-', limit_item: 'nofile', value: 65536 }
+    - { domain: "{{mongodb.user}}", limit_type: '-', limit_item: 'nproc', value: 192276 }
+    - { domain: "{{mongodb.user}}", limit_type: '-', limit_item: 'memlock', value: unlimited }
+    - { domain: "{{mongodb.user}}", limit_type: '-', limit_item: 'fsize', value: unlimited }
+    - { domain: "{{mongodb.user}}", limit_type: '-', limit_item: 'as', value: unlimited }
+
+
+- name: mongodb-host-config | enforce PAM limits
+  become: yes
+  lineinfile:
+    path: /etc/pam.d/common-session
+    line: 'session required pam_limits.so'
+    insertafter: EOF
