@@ -3,35 +3,52 @@
 - name: mongodb-repset | check existence and create if needed
   block:
     - name: mongodb-repset | get repset status
-      command: "/usr/bin/mongosh --eval 'rs.status()' --quiet"
-      register: r__command_rs_status
-      failed_when: "r__command_rs_status.rc != 0  and  r__command_rs_status.stderr is defined and r__command_rs_status.stderr != 'MongoServerError: no replset config has been received'"
+      community.mongodb.mongodb_shell:
+        mongo_cmd: auto
+        eval: "rs.status()"
+        stringify: true
+      any_errors_fatal: true
+      failed_when: "r__mongodb_shell__status.failed  and r__mongodb_shell__status.msg is not regex('no replset config has been received')"
+      register: r__mongodb_shell__status
 
-    - name: mongodb-repset | debug rs.status()
-      debug: msg="{{r__command_rs_status}}"
+    - name: debug r__mongodb_shell__status
+      debug: { msg: "{{r__mongodb_shell__status}}" }
+      run_once: true
 
-    - debug: msg="Will create replset"
-      when: "r__command_rs_status.rc != 0  and  r__command_rs_status.stderr is defined and r__command_rs_status.stderr == 'MongoServerError: no replset config has been received'"
-
-    - name: mongodb-repset | initialise/create replicaset
+    - name: mongodb-repset | initialise/create replicaset (idempotent; we always do this, so redeploys are handled)
       community.mongodb.mongodb_replicaset:
-#        login_user: "{{ admin_user }}"
-#        login_password: "{{ admin_user_password }}"
+        debug: true
+        cluster_cmd: "{{'isMaster' if (mongodb.version.split('.')[0:2] | join('.') is version('3.4', '<=' )) else omit}}"    # isMaster is replaced by 'hello' after 3.4
         replica_set: "{{mongodb.mongod_conf.replication.replSetName}}"
         members: "{{ groups['mongodb'] | map('regex_replace', '^(.*)$', '\\1' + '.' + cluster_vars.dns_user_domain + ':' +  mongodb.mongod_conf.net.port|string) | sort }}"
-      when: "r__command_rs_status.rc != 0  and  r__command_rs_status.stderr is defined and r__command_rs_status.stderr == 'MongoServerError: no replset config has been received'"
-  become: yes
+
+    - name: mongodb-repset | Wait for converged status [All members must be in state of PRIMARY,SECONDARY, or ARBITER; One of the members must be in state PRIMARY].  (We can't use community.mongodb.mongodb_status with MongoDB <=3.4)
+      community.mongodb.mongodb_shell:
+        mongo_cmd: auto
+        eval: "rs.status()"
+        stringify: true
+      register: r__mongodb_shell__status
+      any_errors_fatal: true
+      changed_when: false
+      retries: 10
+      until: >
+        r__mongodb_shell__status | json_query('transformed_output.members[?health==`0` || !(contains(`PRIMARY,SECONDARY,ARBITER` stateStr))]') | length==0 and
+        r__mongodb_shell__status | json_query('transformed_output.members[?stateStr==`PRIMARY`]') | length==1 
+
+    - name: debug r__mongodb_shell__status
+      debug: { msg: "{{r__mongodb_shell__status | json_query('transformed_output.members[].{name: name, stateStr: stateStr, state: state, health: health}') | sort(attribute='name')}}" }
+      run_once: true
+
+  #    - name: mongodb-repset | get repset status
+  #      community.mongodb.mongodb_status:
+  #        replica_set: "{{mongodb.mongod_conf.replication.replSetName}}"
+  #        strict_compatibility: false
+  #      register: r__mongodb_status
+  #      retries: 10      # Can't use poll/interval until https://github.com/ansible-collections/community.mongodb/pull/657 is in mainline.  Use retries/until in the meantime.
+  #      until: r__mongodb_status is success
+
+  #    - name: mongodb-repset | debug r__mongodb_status
+  #      debug: msg="{{r__mongodb_status}}"
+  become: true
   delegate_to: "{{ (groups['mongodb'] | sort())[0] }}"
-  run_once: yes
-
-- name: mongodb-repset | get repset status
-  community.mongodb.mongodb_status:
-    replica_set: "{{mongodb.mongod_conf.replication.replSetName}}"
-#    login_user: "{{ admin_user }}"
-#    login_password: "{{ admin_user_password }}"
-    poll: 3
-    interval: 10
-  register: r__mongodb_status
-
-- name: mongodb-repset | debug r__mongodb_status
-  debug: msg="{{r__mongodb_status}}"
+  run_once: true

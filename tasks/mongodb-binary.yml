@@ -1,38 +1,68 @@
 ---
 
 - name: mongodb-binary | Install required packages and libraries
-  become: yes
+  become: true
   apt:
-    name: ['libcurl4', 'openssl', 'liblzma5', 'gnupg', 'python3-pip']
-    update_cache: yes
+    name: ['openssl', 'liblzma5', 'gnupg', 'python3-pip']
+    update_cache: true
 
-- name: mongodb-binary | Install pymongo via pip (you must use pymongo 3.12+ with MongoDB >= 5.0, which is not available with apt in Ubuntu20.04). Note pymongo>3.12.3 is broken too, until https://github.com/ansible-collections/community.mongodb/pull/450/files is in the repo.
-  become: yes
-  pip:
-    name: ['pymongo==3.12.3']
+- name: mongodb-binary | Install pymongo via pip (apt version is too old).
+  become: true
+  ansible.builtin.pip:
+    break_system_packages: true
+    name: ['pymongo{{"==" + compatibility_matrix[mongodb.version.split(".")[0:2] | join(".")].pymongo_version if "pymongo_version" in compatibility_matrix[mongodb.version.split(".")[0:2] | join(".")] else ""}}']
 
 - name: mongodb-binary | Add GPG apt Key
-  become: yes
-  apt_key:
+  become: true
+  ansible.builtin.apt_key:
     url: "https://www.mongodb.org/static/pgp/server-{{mongodb.version | regex_replace('^([0-9])\\.([0-9]*).*', '\\1.\\2')}}.asc"
     state: present
+  ignore_errors: true
+  register: r__apt_key
+
+- name: "mongodb-binary | AllowInsecureRepositories if GPG key addition fails (for very old Mongo, the GPG keys are out of date)"
+  become: true
+  ansible.builtin.copy:
+    content: 'Acquire::AllowInsecureRepositories "true";'
+    dest: /etc/apt/apt.conf
+    mode: '0644'
+  when: r__apt_key.failed
 
 - name: mongodb-binary | Add Repository
-  become: yes
-  apt_repository:
+  become: true
+  ansible.builtin.apt_repository:
     repo: "deb [arch={{ 'amd64' if ansible_architecture == 'x86_64' else 'arm64' if ansible_architecture == 'aarch64' else ansible_architecture }}] https://repo.mongodb.org/apt/{{ansible_distribution|lower}} {{ansible_distribution_release}}/mongodb-org/{{mongodb.version | regex_replace('^([0-9])\\.([0-9]*).*', '\\1.\\2')}} multiverse"
     state: present
 
-- name: mongodb-binary | Update apt and install mongodb binaries
-  become: yes
-  apt:
-    update_cache: yes
-    name:
-      - "mongodb-org={{mongodb.version}}*"
-      - "mongodb-org-database={{mongodb.version}}*"
-#      - "mongodb-org-database-tools-extra={{mongodb.version}}*"
-#      - "mongodb-org-mongos={{mongodb.version}}*"
-      - "mongodb-org-server={{mongodb.version}}*"
-      - "mongodb-org-shell={{mongodb.version}}*"
-      - "mongodb-org-tools={{mongodb.version}}*"
+- name: mongodb-binary | Install mongodb-org binaries
+  become: true
+  ansible.builtin.apt:
+    allow_unauthenticated: "{{'true' if r__apt_key.failed else omit}}"
+    update_cache: true
+    name: "{{ compatibility_matrix[mongodb.version.split('.')[0:2] | join('.')].mongo_org_binaries | map('regex_replace', '^(.*)$', '\\1=' + mongodb.version) | list }}"
     state: present
+
+- name: mongodb-binary | Install standalone mongosh if not installing mongodb-org-shell
+  become: true
+  ansible.builtin.apt:
+    allow_unauthenticated: "{{'true' if r__apt_key.failed else omit}}"
+    update_cache: true
+    name: ['mongodb-mongosh']
+    state: present
+  when: "'mongodb-org-shell' not in compatibility_matrix[mongodb.version.split('.')[0:2] | join('.')].mongo_org_binaries"
+
+#- name: mongodb-binary | Create symlink mongosh from /usr/bin/mongo to /usr/bin/mongosh (for compatibility with older MongoDB versions that use the legacy mongo shell binary)
+#  block:
+#    - name: mongodb-binary | Check if /usr/bin/mongo exists (the legacy mongo shell binary)
+#      ansible.builtin.stat:
+#        path: /usr/bin/mongo
+#      register: r__legacy_mongo_shell_binary
+#
+#    - name: mongodb-binary | Create symlink from /usr/bin/mongosh to /usr/bin/mongo
+#      become: true
+#      ansible.builtin.file:
+#        src: /usr/bin/mongo
+#        dest: /usr/bin/mongosh
+#        state: link
+#      when: r__legacy_mongo_shell_binary.stat.exists
+#  when: "'mongodb-org-shell' in compatibility_matrix[mongodb.version.split('.')[0:2] | join('.')].mongo_org_binaries"

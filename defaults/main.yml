@@ -9,6 +9,7 @@ compatibility_matrix:
     ubuntu: "{{_ubuntu1804image}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools', 'mongodb-org-shell']
     pymongo_version: "3.12.3"
+    #upgrade__feature_compatibility_version: {before: "3.4", after: "3.6"}
   "4.0":
     ubuntu: "{{_ubuntu1804image}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools', 'mongodb-org-shell']
@@ -24,9 +25,15 @@ compatibility_matrix:
   "6.0":
     ubuntu: "{{_ubuntu2004image}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
+  "7.0":
+    ubuntu: "{{_ubuntu2204image}}"
+    mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
+#  "8":
+#    ubuntu: "{{_ubuntu2204image}}"
+#    mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
 
 mongodb:
-  version: "{{ mongo_version | default('6.0.0') }}"
+  version: "{{ mongo_version | default('7.0.11') }}"   # Latest versions: "3.4.24", "3.6.23", "4.0.28", "4.2.25", "4.4.29", "5.0.27", "6.0.15", "7.0.11"
   sysuser: "mongodb"
   sysgroup: "mongodb"
   admin_password: "admin_password"

@@ -1,7 +1,7 @@
 ---
 
 - name: mongodb-config | Change data and log directory ownership (must do after mount because ext4 cannot be mounted with uid/gid options)
-  become: yes
+  become: true
   file:
     path: "{{item}}"
     owner: "{{mongodb.user}}"
@@ -14,16 +14,16 @@
 
 
 - name: mongodb-config | Copy monogd.conf
-  become: yes
+  become: true
   copy:
     content: "{{ mongodb.mongod_conf | to_yaml }}"
     dest: "/etc/mongod.conf"
-    force: yes
+    force: true
   notify: restart mongodb
 
 
 - name: mongodb-config | Copy SSL CA to remote
-  become: yes
+  become: true
   copy:
     content: "{{ item.val }}"
     dest: "{{ item.path }}"
@@ -38,30 +38,33 @@
 
 
 - name: mongodb-host-config | disable transparent huge pages
-  become: yes
+  become: true
   copy:
     content: |
       [Unit]
-      Description=Disable Transparent Huge Pages
+      Description=Disable Transparent Huge Pages (THP)
+      DefaultDependencies=no
+      After=sysinit.target local-fs.target
+      Before=mongod.service
       
       [Service]
       Type=oneshot
-      ExecStart=/usr/bin/env sh -c "echo 'never' > /sys/kernel/mm/transparent_hugepage/enabled && echo 'never' > /sys/kernel/mm/transparent_hugepage/defrag"
-      
+      ExecStart=/usr/bin/env sh -c "echo 'never' > /sys/kernel/mm/transparent_hugepage/enabled && echo 'never' > /sys/kernel/mm/transparent_hugepage/defrag"      
+
       [Install]
-      WantedBy=multi-user.target
+      WantedBy=basic.target
     dest: "/etc/systemd/system/thp-disable.service"
-    force: yes
+    force: true
   notify: restart thp-disable.service
 
 
 - name: mongodb-host-config | set basic sysctls
-  become: yes
+  become: true
   sysctl:
     name: "{{ item.name }}"
     value: "{{ item.value }}"
-    reload: yes
-    sysctl_set: yes
+    reload: true
+    sysctl_set: true
     state: present
   with_items:
     - {name: vm.swappiness,         value: 0}
@@ -71,12 +74,12 @@
     - {name: vm.max_map_count,      value: 262144}
 
 - name: mongodb-host-config | set network sysctls
-  become: yes
+  become: true
   sysctl:
     name: "{{ item.name }}"
     value: "{{ item.value }}"
-    reload: yes
-    sysctl_set: yes
+    reload: true
+    sysctl_set: true
     state: present
   with_items:
     - {name: net.core.somaxconn,                  value: 4096}
@@ -87,7 +90,7 @@
 
 
 - name: mongodb-host-config | Add or modify hard nofile limits for mongodb and wildcard domains
-  become: yes
+  become: true
   pam_limits:
     domain: "{{item.domain}}"
     limit_type: "{{item.limit_type}}"
@@ -109,7 +112,7 @@
 
 
 - name: mongodb-host-config | enforce PAM limits
-  become: yes
+  become: true
   lineinfile:
     path: /etc/pam.d/common-session
     line: 'session required pam_limits.so'

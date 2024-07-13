@@ -1,0 +1,49 @@
+---
+
+- name: mongodb/redeploy_predelete | hosts_to_remove
+  debug: msg="{{hosts_to_remove | default([])}}"
+
+- block:
+    - name: mongodb-repset | get primary
+      community.mongodb.mongodb_shell:
+        mongo_cmd: auto
+        eval: "rs.status().members.find(r=>r.state===1).name"
+        transform: raw
+      register: r__mongo__primary
+      run_once: true
+
+    - name: debug r__mongo__primary
+      debug: { msg: "{{r__mongo__primary}}" }
+      run_once: true
+
+    - name: get a list of the non-primary members
+      set_fact:
+        non_primary_members: "{{ groups['mongodb'] | map('regex_replace', '^(.*)$', '\\1' + '.' + cluster_vars.dns_user_domain + ':' +  mongodb.mongod_conf.net.port|string) | sort | difference([r__mongo__primary.transformed_output]) }}"
+
+    - name: mongodb/redeploy_predelete | If this is the primary, then we need to step down
+      community.mongodb.mongodb_stepdown:
+        strict_compatibility: false
+      register: r__mongodb_stepdown
+      until: r__mongodb_stepdown is success
+      retries: 10      # Can't use poll/interval until https://github.com/ansible-collections/community.mongodb/pull/657 is in mainline.  Use retries/until in the meantime.
+      when: "{{ r__mongo__primary.transformed_output.split(':')[0] == inventory_hostname' }}"
+
+    - name: mongodb/redeploy_predelete | shut down non_primary_members
+      community.mongodb.mongodb_shutdown:
+        timeout: 60
+      delegate_to: "{{item.name}}"
+      loop: "{{non_primary_members}}"
+
+#    - name: mongodb/redeploy_predelete | Stop mongod service
+#      become: true
+#      service: {name: mongod, state: stopped}
+
+    - name: mongodb/redeploy_predelete | remove non_primary_members from the replicaset
+      community.mongodb.mongodb_replicaset:
+        debug: true
+        cluster_cmd: "{{'isMaster' if (mongodb.version.split('.')[0:2] | join('.') is version('3.4', '<=' )) else omit}}"    # isMaster is replaced by 'hello' after 3.4
+        replica_set: "{{mongodb.mongod_conf.replication.replSetName}}"
+        members: "{{ non_primary_members }}"
+        action: remove
+      register: r__mongodb_replicaset
+  when: hosts_to_remove | length

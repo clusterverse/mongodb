@@ -13,6 +13,8 @@ galaxy_info:
     - xenial
     - bionic
     - focal
+    - jammy
+    - noble
 
   galaxy_tags:
     - mongodb
