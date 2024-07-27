@@ -1,0 +1,26 @@
+---
+
+cluster_vars:
+  dev:
+    ssh_connection_cfg:
+      host: &host_ssh_connection_cfg
+        ansible_user: "ansible"
+        ansible_ssh_private_key_file: "{{ lookup('env', 'ansible_ssh_private_key_file') | default ('') }}"    # NOTE: This can either be sourced from environment (ansible_ssh_private_key_file), or defined inline here (perhaps vaulted).  Alternatively this can be omitted and --private-key=<privkeyfile> (which creates the ansible variable 'ansible_ssh_private_key_file') can be used on the command line.
+#      bastion:
+#        ssh_args (proxy_only): "{{ ((' -o ProxyCommand=\"nc -X connect -x ' ~ (lookup('env', 'HTTP_PROXY') | regex_replace('^https?://', '')) ~ ' %h %p\"') if lookup('env', 'HTTP_PROXY') != '' else '') }}"
+#        ssh_args (bastion_only): '-o ProxyCommand="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ./id_rsa_bastion -W %h:%p -q user@bastion.zepkey.com"'
+#        ssh_args (bastion_and_proxy): "{{ '-o ProxyCommand=\"ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ./id_rsa_bastion' ~ ((' -o ProxyCommand=\\\"nc -X connect -x ' ~ (lookup('env', 'HTTP_PROXY') | regex_replace('^https?://', '')) ~ ' bastion.zepkey.com 22\\\"') if lookup('env', 'HTTP_PROXY') != '' else '') ~ ' user@bastion.zepkey.com -W %h:%p\"' }}"
+#        ssh_priv_key: "{{ lookup('env', 'BASTION_SSH_PRIVATE_KEY_CONTENTS') | default ('') }}"       # NOTE: This can either be sourced from environment (BASTION_SSH_PRIVATE_KEY_CONTENTS), or defined inline here (perhaps vaulted).
+#    nsupdate_cfg: {server: "", key_name: "", key_secret: ""}      # If you're using bind9 (or other nsupdate-compatible 'dns_server')
+
+    hosttype_vars:
+      mongod:
+        auto_volumes:
+          - {mountpoint: "{{ mongodb.mongod_conf.storage.dbPath }}", fstype: "xfs", size_gb: 2}
+          - {mountpoint: "{{ mongodb.mongod_conf.systemLog.path | dirname }}", fstype: "ext4", size_gb: 1}
+        flavor: { num_cpus: "2", memory_mb: "2048", autostart: true, firmware: EFI }   # firmware: EFI(default), or BIOS
+        version: "{{mongodb.version | regex_replace('\\.', '_') | default('')}}"
+        networks: [ &mongodb_NET1 { interface_type: "bridge", source_dev: "br0" } ]
+        vms_by_az: { a: 1, b: 0, c: 0 }
+
+_host_ssh_connection_cfg: { <<: *host_ssh_connection_cfg }

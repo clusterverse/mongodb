@@ -1,0 +1,21 @@
+---
+
+- name: redeploy | Redeploy the cluster
+  hosts: localhost
+  tasks:
+    - { name: "Get dependent roles via ansible-galaxy", local_action: "command ansible-galaxy role install -r requirements.yml", tags: ["always"] }
+
+    - assert: { that: "['dseeley.tasks_serial', 'dseeley.ansible_vault_pipe'] is subset(galaxy_collections.keys())", success_msg: "clusterverse collections dependencies are met", fail_msg: "Please ensure the clusterverse collections are installed: ansible-galaxy install -r requirements.yml)" }
+      vars: { galaxy_collections: "{{lookup('pipe', 'ansible-galaxy collection list --format=json', errors='ignore') | from_json | json_query('*') | combine }}" }
+      tags: ["always"]
+
+    - name: Redeploy | Verify the cluster's health before redeploy
+      include_role:
+        name: "mongodb/verify"
+
+    - name: redeploy | Run redeploy
+      include_role:
+        name: clusterverse/redeploy
+      vars:
+        mainclusteryml: "cluster.yml"
+        predeleterole: "mongodb/_redeploy_predelete"

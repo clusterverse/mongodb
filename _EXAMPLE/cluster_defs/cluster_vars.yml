@@ -1,0 +1,18 @@
+---
+
+redeploy_schemes_supported: ['_scheme_addnewvm_rmdisk_rollback', '_scheme_rmvm_keepdisk_rollback']
+## Note: We don't officially support _scheme_addallnew_rmdisk_rollback because we don't want to force removal of more than one voting member at a time, which could result in the rollback of "majority" committed write operations (see https://www.mongodb.com/docs/manual/reference/method/rs.reconfig/#reconfiguration-can-add-or-remove-no-more-than-one-voting-member-at-a-time).  It would be fine to use this if the DB is not accpeting writes.
+redeploy_scheme: "_scheme_rmvm_keepdisk_rollback"
+canary_tidy_on_success: true
+canary: none
+
+pkgupdate: "on_create"                                      # "always" or "on_create".  Leave empty to prevent updating packages.
+omit_singleton_hosttype_from_hostname: true                 # Don't need the hosttype in the hostname (e.g. 'mongo-dev-mongod-a0' vs 'mongo-dev-a0')
+
+app_name: "mongo"                                           # The name of the application cluster (e.g. 'couchbase', 'nginx'); becomes part of cluster_name.
+cluster_name: "{{buildenv}}-shared-{{app_name}}"            # Identifies the cluster within the cloud environment
+
+cluster_vars:
+  custom_tagslabels:
+    environment: "{{buildenv}}"
+    owner: "{{ lookup('pipe', 'whoami') | lower }}"

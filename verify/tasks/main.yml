@@ -1,0 +1,18 @@
+---
+
+- name: verify | Wait for converged status [All members must be in state of PRIMARY,SECONDARY, or ARBITER; One of the members must be in state PRIMARY].  (We can't use community.mongodb.mongodb_status with MongoDB <=3.4)
+  community.mongodb.mongodb_shell:
+    mongo_cmd: auto
+    eval: "rs.status()"
+    stringify: true
+  delegate_to: "{{ groups['mongodb'][0] }}"
+  register: r__mongodb_shell__status
+  any_errors_fatal: true
+  changed_when: false
+  retries: 10
+  until: >
+    r__mongodb_shell__status | json_query('transformed_output.members[?health==`0` || !(contains(`PRIMARY,SECONDARY,ARBITER` stateStr))]') | length==0 and
+    r__mongodb_shell__status | json_query('transformed_output.members[?stateStr==`PRIMARY`]') | length==1 
+
+- name: verify | r__mongodb_shell__status
+  debug: { msg: "{{r__mongodb_shell__status | json_query('transformed_output.members[].{name: name, stateStr: stateStr, state: state, health: health}') | sort(attribute='name')}}" }

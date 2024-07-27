@@ -1,5 +1,7 @@
 ---
 
+playbook_ca_yaml: "{{playbook_dir}}/cluster_defs/ssl_ca.yml"
+
 compatibility_matrix:
   "3.4":
     ubuntu: "{{_ubuntu1604image}}"
@@ -9,35 +11,46 @@ compatibility_matrix:
     ubuntu: "{{_ubuntu1804image}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools', 'mongodb-org-shell']
     pymongo_version: "3.12.3"
-    #upgrade__feature_compatibility_version: {before: "3.4", after: "3.6"}
+    upgrade__feature_compatibility_version: {before: "3.4"}
   "4.0":
     ubuntu: "{{_ubuntu1804image}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools', 'mongodb-org-shell']
+    upgrade__feature_compatibility_version: {before: "3.6"}
   "4.2":
     ubuntu: "{{_ubuntu1804image}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools', 'mongodb-org-shell']
+    upgrade__feature_compatibility_version: {before: "4.0"}
   "4.4":
     ubuntu: "{{_ubuntu2004image}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
+    upgrade__feature_compatibility_version: {before: "4.2"}
   "5.0":
     ubuntu: "{{_ubuntu2004image}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
+    upgrade__feature_compatibility_version: {before: "4.4"}
   "6.0":
     ubuntu: "{{_ubuntu2004image}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
+    upgrade__feature_compatibility_version: {before: "5.0"}
   "7.0":
     ubuntu: "{{_ubuntu2204image}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
+    upgrade__feature_compatibility_version: {before: "6.0"}
 #  "8":
 #    ubuntu: "{{_ubuntu2204image}}"
 #    mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
+#    upgrade__feature_compatibility_version: {before: "7.0"}
 
 mongodb:
   version: "{{ mongo_version | default('7.0.11') }}"   # Latest versions: "3.4.24", "3.6.23", "4.0.28", "4.2.25", "4.4.29", "5.0.27", "6.0.15", "7.0.11"
   sysuser: "mongodb"
   sysgroup: "mongodb"
   admin_password: "admin_password"
-  users: []
+  users:
+    - name: "dougal_user"
+      password: password
+      pw_database: "dougal_db"
+      roles: [ {role: "readWrite", db: "dougal_db"} ]
   mongod_conf:
     storage:
       dbPath: /var/lib/mongodb
@@ -56,7 +69,7 @@ mongodb:
         PEMKeyFile: "/etc/ssl/mongodb/mongodb.pem"
         CAFile: "/etc/ssl/mongodb/ca.pem"
         allowConnectionsWithoutCertificates: true
-#        allowInvalidHostnames: true
+    #        allowInvalidHostnames: true
     security:
       authorization: "enabled"
       clusterAuthMode: "x509"

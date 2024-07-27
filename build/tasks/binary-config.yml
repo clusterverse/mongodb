@@ -1,0 +1,35 @@
+---
+
+- name: binary-config | Copy monogd.conf
+  become: true
+  copy:
+    content: "{{ mongodb.mongod_conf | to_yaml }}"
+    dest: "/etc/mongod.conf"
+    force: true
+  notify: restart mongodb
+
+- name: binary-config | Copy SSL CA to remote
+  become: true
+  copy:
+    content: "{{ item.val }}"
+    dest: "{{ item.path }}"
+    mode: "{{ item.mode }}"
+    owner: "{{ mongodb.sysuser }}"
+    group: "{{ mongodb.sysgroup }}"
+    force: "{{ 'yes' if recreate_certs is defined and recreate_certs|bool else 'no' }}"
+  no_log: true
+  with_items:
+    - { path: "{{ mongodb.mongod_conf.storage.dbPath }}/ca.crt", val: "{{ssl_ca['ca-crt.pem']}}", mode: '0600' }
+  notify: restart mongodb
+
+- name: binary-config | Change data and log directory ownership (must do after mount and install because ext4 cannot be mounted with uid/gid options, and user doesn't exist before install)
+  become: true
+  file:
+    path: "{{item}}"
+    owner: "{{mongodb.sysuser}}"
+    group: "{{mongodb.sysgroup}}"
+    mode: 0755
+  loop:
+    - "{{mongodb.mongod_conf.storage.dbPath}}"
+    - "{{mongodb.mongod_conf.systemLog.path | dirname}}"
+  notify: restart mongodb

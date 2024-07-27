@@ -1,20 +1,24 @@
 ---
 
+- name: mongodb | configure ssl for replicaset
+  include_tasks:
+    file: ssl_ownca.yml
+
 - name: mongodb | configure the host VM
   include_tasks:
-    file: mongodb-host-config.yml
+    file: host-config.yml
 
 - name: mongodb | install the binary
   include_tasks:
-    file: mongodb-binary.yml
+    file: binary-install.yml
 
 - name: mongodb | configure mongodb
   include_tasks:
-    file: mongodb-config.yml
+    file: binary-config.yml
 
 - name: mongodb | flush handlers
   meta: flush_handlers
 
 - name: mongodb | configure mongodb replicaset
   include_tasks:
-    file: mongodb-replset.yml
+    file: replicaset.yml

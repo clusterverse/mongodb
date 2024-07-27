@@ -1,0 +1,26 @@
+---
+
+roles:
+  - name: clusterverse
+    src: https://github.com/dseeley/clusterverse
+    version: master
+
+  - name: mongodb
+    src: https://github.com/dseeley/mongodb-ansible
+    version: master
+
+collections:
+  - name: dseeley.nested_playbook
+    source: https://galaxy.ansible.com
+
+  - name: dseeley.tasks_serial
+    source: https://galaxy.ansible.com
+
+  - name: dseeley.ansible_vault_pipe
+    source: https://galaxy.ansible.com
+
+  - name: dseeley.inventory_lookup
+    source: https://galaxy.ansible.com
+
+  - name: dseeley.libvirt
+    source: https://galaxy.ansible.com

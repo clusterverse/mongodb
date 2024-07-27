@@ -1,18 +1,19 @@
 ---
 
-- name: mongodb-binary | Install required packages and libraries
+
+- name: binary-install | Install required packages and libraries
   become: true
   apt:
     name: ['openssl', 'liblzma5', 'gnupg', 'python3-pip']
     update_cache: true
 
-- name: mongodb-binary | Install pymongo via pip (apt version is too old).
+- name: binary-install | Install pymongo via pip (apt version is too old).
   become: true
   ansible.builtin.pip:
     break_system_packages: true
     name: ['pymongo{{"==" + compatibility_matrix[mongodb.version.split(".")[0:2] | join(".")].pymongo_version if "pymongo_version" in compatibility_matrix[mongodb.version.split(".")[0:2] | join(".")] else ""}}']
 
-- name: mongodb-binary | Add GPG apt Key
+- name: binary-install | Add GPG apt Key
   become: true
   ansible.builtin.apt_key:
     url: "https://www.mongodb.org/static/pgp/server-{{mongodb.version | regex_replace('^([0-9])\\.([0-9]*).*', '\\1.\\2')}}.asc"
@@ -20,7 +21,7 @@
   ignore_errors: true
   register: r__apt_key
 
-- name: "mongodb-binary | AllowInsecureRepositories if GPG key addition fails (for very old Mongo, the GPG keys are out of date)"
+- name: binary-install | AllowInsecureRepositories if GPG key addition fails (for very old Mongo, the GPG keys are out of date)
   become: true
   ansible.builtin.copy:
     content: 'Acquire::AllowInsecureRepositories "true";'
@@ -28,13 +29,13 @@
     mode: '0644'
   when: r__apt_key.failed
 
-- name: mongodb-binary | Add Repository
+- name: binary-install | Add Repository
   become: true
   ansible.builtin.apt_repository:
     repo: "deb [arch={{ 'amd64' if ansible_architecture == 'x86_64' else 'arm64' if ansible_architecture == 'aarch64' else ansible_architecture }}] https://repo.mongodb.org/apt/{{ansible_distribution|lower}} {{ansible_distribution_release}}/mongodb-org/{{mongodb.version | regex_replace('^([0-9])\\.([0-9]*).*', '\\1.\\2')}} multiverse"
     state: present
 
-- name: mongodb-binary | Install mongodb-org binaries
+- name: binary-install | Install mongodb-org binaries
   become: true
   ansible.builtin.apt:
     allow_unauthenticated: "{{'true' if r__apt_key.failed else omit}}"
@@ -42,7 +43,7 @@
     name: "{{ compatibility_matrix[mongodb.version.split('.')[0:2] | join('.')].mongo_org_binaries | map('regex_replace', '^(.*)$', '\\1=' + mongodb.version) | list }}"
     state: present
 
-- name: mongodb-binary | Install standalone mongosh if not installing mongodb-org-shell
+- name: binary-install | Install standalone mongosh if not installing mongodb-org-shell
   become: true
   ansible.builtin.apt:
     allow_unauthenticated: "{{'true' if r__apt_key.failed else omit}}"
@@ -50,19 +51,3 @@
     name: ['mongodb-mongosh']
     state: present
   when: "'mongodb-org-shell' not in compatibility_matrix[mongodb.version.split('.')[0:2] | join('.')].mongo_org_binaries"
-
-#- name: mongodb-binary | Create symlink mongosh from /usr/bin/mongo to /usr/bin/mongosh (for compatibility with older MongoDB versions that use the legacy mongo shell binary)
-#  block:
-#    - name: mongodb-binary | Check if /usr/bin/mongo exists (the legacy mongo shell binary)
-#      ansible.builtin.stat:
-#        path: /usr/bin/mongo
-#      register: r__legacy_mongo_shell_binary
-#
-#    - name: mongodb-binary | Create symlink from /usr/bin/mongosh to /usr/bin/mongo
-#      become: true
-#      ansible.builtin.file:
-#        src: /usr/bin/mongo
-#        dest: /usr/bin/mongosh
-#        state: link
-#      when: r__legacy_mongo_shell_binary.stat.exists
-#  when: "'mongodb-org-shell' in compatibility_matrix[mongodb.version.split('.')[0:2] | join('.')].mongo_org_binaries"
