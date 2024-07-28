@@ -1,0 +1,134 @@
+---
+
+- name: verify/pre | validate the upgrade path
+  block:
+    - name: verify/pre | Get featureCompatibilityVersion
+      community.mongodb.mongodb_shell:
+        login_user: "admin"
+        login_password: "{{mongodb.admin_password}}"
+        mongo_cmd: auto
+        debug: true
+        stringify: true
+        eval: "db.adminCommand( { getParameter: 1, featureCompatibilityVersion: 1 } )"
+      delegate_to: "{{ primary_host }}"
+      register: r__mongodb_shell__current_featureCompatibilityVersion
+      changed_when: false
+
+    - name: verify/pre | Get current db version
+      community.mongodb.mongodb_shell:
+        login_user: "admin"
+        login_password: "{{mongodb.admin_password}}"
+        mongo_cmd: auto
+        debug: true
+        stringify: false
+        transform: raw
+        eval: "db.version()"
+      delegate_to: "{{ primary_host }}"
+      register: r__mongodb_shell__get_version
+
+    - name: "verify/pre | assert valid upgrade path, and upgrade featureCompatibilityVersion if valid"
+      block:
+        - name: "verify/pre | assert valid upgrade path"
+          assert:
+            that: new_db_version in [current_db_version, current_featureCompatibilityVersion__v34_compatible, compatibility_matrix[r__mongodb_shell__get_version.transformed_output.split('.')[0:2] | join('.')].feature_compatibility_versions.next]
+            fail_msg: "new_db_version ({{new_db_version}}) not in [current_db_version({{current_db_version}}), current_featureCompatibilityVersion({{current_featureCompatibilityVersion__v34_compatible}}), next_compatible_version({{next_compatible_version}})]"
+            success_msg: "new_db_version ({{new_db_version}}) in [current_db_version({{current_db_version}}), current_featureCompatibilityVersion({{current_featureCompatibilityVersion__v34_compatible}}), next_compatible_version({{next_compatible_version}})]"
+
+        - name: verify/pre | Set featureCompatibilityVersion
+          community.mongodb.mongodb_shell:
+            login_user: "admin"
+            login_password: "{{mongodb.admin_password}}"
+            mongo_cmd: auto
+            debug: true
+            stringify: true
+            eval: "db.adminCommand( { setFeatureCompatibilityVersion: \"{{r__mongodb_shell__get_version.transformed_output.split('.')[0:2] | join('.')}}\" {%- if r__mongodb_shell__get_version.transformed_output.split('.')[0] >= '7' -%}, confirm: true {%- endif -%} } )"
+          delegate_to: "{{ primary_host }}"
+          failed_when: "r__mongodb_shell__set_featureCompatibilityVersion.failed or ('transformed_output' in r__mongodb_shell__set_featureCompatibilityVersion and  r__mongodb_shell__set_featureCompatibilityVersion.transformed_output.ok != 1)"    # This failed_when clause is only required for MongoDB v3.4
+          register: r__mongodb_shell__set_featureCompatibilityVersion
+      vars:
+        new_db_version: "{{ mongodb.version.split('.')[0:2] | join('.') }}"
+        current_db_version: "{{ r__mongodb_shell__get_version.transformed_output.split('.')[0:2] | join('.') }}"
+        current_featureCompatibilityVersion__v34_compatible: "{{ r__mongodb_shell__current_featureCompatibilityVersion.transformed_output.featureCompatibilityVersion.version if 'version' in r__mongodb_shell__current_featureCompatibilityVersion.transformed_output.featureCompatibilityVersion else r__mongodb_shell__current_featureCompatibilityVersion.transformed_output.featureCompatibilityVersion }}"
+        next_compatible_version: "{{ compatibility_matrix[r__mongodb_shell__get_version.transformed_output.split('.')[0:2] | join('.')].feature_compatibility_versions.next }}"
+        previous_compatible_version: "{{ compatibility_matrix[r__mongodb_shell__get_version.transformed_output.split('.')[0:2] | join('.')].feature_compatibility_versions.previous }}"
+
+
+- name: verify/pre | Verify with test user and data
+  block:
+    - name: verify/pre | delete minimum user for testing (MongoDB 3.4)
+      community.mongodb.mongodb_shell:
+        login_user: "admin"
+        login_password: "{{mongodb.admin_password}}"
+        mongo_cmd: auto
+        debug: true
+        stringify: true
+        db: "_redeploy_test"
+        eval: "db.dropUser( '_redeploy_test' )"
+      delegate_to: "{{ primary_host }}"
+      when: mongodb.version.split('.')[0:2] | join('.') is version('4.0', '<=' )    # NOTE: whilst v3.6 is supports mongodb_replicaset, if we're doing a redeploy to v3.6, we'll also be running this on v3.4 nodes.
+
+    - name: verify/pre | delete minimum user for testing (MongoDB >3.4)
+      community.mongodb.mongodb_user:
+        login_user: "admin"
+        login_password: "{{mongodb.admin_password}}"
+        database: "_redeploy_test"
+        replica_set: "{{mongodb.mongod_conf.replication.replSetName}}"
+        user: "_redeploy_test"
+        state: absent
+      delegate_to: "{{ primary_host }}"
+      when: mongodb.version.split('.')[0:2] | join('.') is version('4.0', '>' )    # NOTE: whilst v3.6 is supports mongodb_replicaset, if we're doing a redeploy to v3.6, we'll also be running this on v3.4 nodes.
+
+    - name: verify/pre | drop _redeploy_test database
+      community.mongodb.mongodb_shell:
+        login_user: "admin"
+        login_password: "{{mongodb.admin_password}}"
+        mongo_cmd: auto
+        debug: true
+        stringify: true
+        db: "_redeploy_test"
+        eval: "db.dropDatabase()"
+      delegate_to: "{{ primary_host }}"
+
+    - name: verify | create _redeploy_test database/ testdata collection (so that we can create a user with readWrite access to it)
+      community.mongodb.mongodb_shell:
+        login_user: "admin"
+        login_password: "{{mongodb.admin_password}}"
+        mongo_cmd: auto
+        debug: true
+        stringify: true
+        db: "_redeploy_test"
+        eval: "db.createCollection(\"testdata\")"
+      delegate_to: "{{ primary_host }}"
+
+    - name: verify/pre | create minimum user for testing (MongoDB 3.4)
+      community.mongodb.mongodb_shell:
+        login_user: "admin"
+        login_password: "{{mongodb.admin_password}}"
+        mongo_cmd: auto
+        debug: true
+        stringify: true
+        db: "_redeploy_test"
+        eval: "db.createUser( { user: '_redeploy_test', pwd: \"{{_redeploy_test_user_password}}\", roles: [ { role: 'readWrite', db: '_redeploy_test' } ] })"
+      when: mongodb.version.split('.')[0:2] | join('.') is version('4.0', '<=' )    # NOTE: whilst v3.6 is supports mongodb_replicaset, if we're doing a redeploy to v3.6, we'll also be running this on v3.4 nodes.
+
+    - name: verify/pre | create minimum user for testing (MongoDB >3.4)
+      community.mongodb.mongodb_user:
+        login_user: "admin"
+        login_password: "{{mongodb.admin_password}}"
+        database: "_redeploy_test"
+        replica_set: "{{mongodb.mongod_conf.replication.replSetName}}"
+        user: "_redeploy_test"
+        password: "{{_redeploy_test_user_password}}"
+        roles: 'readWrite'
+      when: mongodb.version.split('.')[0:2] | join('.') is version('4.0', '>' )    # NOTE: whilst v3.6 is supports mongodb_replicaset, if we're doing a redeploy to v3.6, we'll also be running this on v3.4 nodes.
+
+    - name: verify/pre | insert data into MongoDB
+      command: python3 /tmp/insert_data.py
+      register: r__insert_data
+
+    - name: verify/pre | check test data is present
+      command: python3 /tmp/verify_data.py
+      register: r__verify_data
+
+    - name: verify/pre | debug r__verify_data
+      debug: {msg: "{{r__verify_data.stdout}}"}

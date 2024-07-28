@@ -16,6 +16,9 @@
           host: localhost
           port: "{{mongodb.mongod_conf.net.port}}"
           timeout: 60
+      - name: ansible.builtin.pause
+        args:
+          seconds: 20
   throttle: 1
 
 - name: restart thp-disable.service

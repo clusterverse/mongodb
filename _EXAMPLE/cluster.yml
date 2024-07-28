@@ -65,12 +65,10 @@
     - { include_role: { name: "clusterverse/cluster_hosts", apply: { tags: ["always"] } }, tags: ["always"], when: "'clusterverse_create' not in ansible_run_tags" }      # If we --skip-tags=clusterverse_create, this will ensure cluster_suffix is defined.
 
 - name: mongodb | mongodb
-  hosts: mongodb
-  tasks: [ { include_role: { name: "mongodb/build", apply: { tags: ["mongodb_build"]} }, tags: ["mongodb_build"] } ]
-
-- name: mongodb | verify the cluster
-  hosts: mongodb
-  tasks: [ { include_role: { name: "mongodb/verify", apply: { tags: ["mongodb_verify"]} }, tags: ["mongodb_verify"] } ]
+  hosts: mongod
+  tasks:
+    - { include_role: { name: "mongodb/build", apply: { tags: ["mongodb_build"]} }, tags: ["mongodb_build"] }
+    - { include_role: { name: "mongodb/verify", apply: { tags: ["mongodb_verify"]} }, tags: ["mongodb_verify"] }
 ######
 
 

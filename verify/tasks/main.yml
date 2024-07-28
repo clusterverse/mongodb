@@ -1,18 +1,58 @@
 ---
 
-- name: verify | Wait for converged status [All members must be in state of PRIMARY,SECONDARY, or ARBITER; One of the members must be in state PRIMARY].  (We can't use community.mongodb.mongodb_status with MongoDB <=3.4)
+- name: verify | Get replicaset status
   community.mongodb.mongodb_shell:
+    login_user: "admin"
+    login_password: "{{mongodb.admin_password}}"
     mongo_cmd: auto
-    eval: "rs.status()"
+    debug: true
     stringify: true
-  delegate_to: "{{ groups['mongodb'][0] }}"
+    eval: "rs.status()"
+  delegate_to: "{{ groups['mongod'][0] }}"
   register: r__mongodb_shell__status
-  any_errors_fatal: true
-  changed_when: false
-  retries: 10
-  until: >
-    r__mongodb_shell__status | json_query('transformed_output.members[?health==`0` || !(contains(`PRIMARY,SECONDARY,ARBITER` stateStr))]') | length==0 and
-    r__mongodb_shell__status | json_query('transformed_output.members[?stateStr==`PRIMARY`]') | length==1 
 
 - name: verify | r__mongodb_shell__status
-  debug: { msg: "{{r__mongodb_shell__status | json_query('transformed_output.members[].{name: name, stateStr: stateStr, state: state, health: health}') | sort(attribute='name')}}" }
+  debug: { msg: "{{r__mongodb_shell__status}}" }
+
+- name: verify | assert that there are the same number of members as hosts
+  assert:
+    that: "{{ r__mongodb_shell__status | json_query(\"transformed_output.members[]\") | length == (groups['mongod'] | length) }}"
+    fail_msg: "There should be the same number of replicaset members as mongodb hosts ({{groups['mongod']}})"
+
+- name: verify | assert that there is only one primary
+  assert:
+    that: "{{r__mongodb_shell__status | json_query(\"transformed_output.members[?stateStr==`PRIMARY`]\") | length==1}}"
+    fail_msg: "There is not exactly one primary in the replicaset"
+
+- name: verify | assert that All members must are in state of PRIMARY, SECONDARY, or ARBITER
+  assert:
+    that: "{{r__mongodb_shell__status | json_query(\"transformed_output.members[?health==`0` || !(contains(`PRIMARY,SECONDARY,ARBITER` stateStr))]\") | length==0 }}"
+    fail_msg: "All members must are in state of PRIMARY, SECONDARY, or ARBITER"
+
+
+- name: verify | redeploy pre/postamble
+  block:
+    - name: verify | copy test files
+      ansible.builtin.template:
+        src: "{{item}}"
+        dest: "/tmp/{{item | regex_replace('.j2$','')}}"
+      with_items: [ "insert_data.py.j2", "verify_data.py.j2" ]
+      register: r__copy_test_files
+
+    - name: verify | pre_redeploy.yml
+      include_tasks: "pre_redeploy.yml"
+      when: verify_redeploy == 'preamble'
+
+    - name: verify | post_redeploy.yml
+      include_tasks: "post_redeploy.yml"
+      when: verify_redeploy == 'postamble'
+
+    - name: verify | remove test files
+      ansible.builtin.file:
+        path: "{{item}}"
+        state: absent
+      with_items: "{{r__copy_test_files.results | map(attribute='dest') }}"
+  when: verify_redeploy is defined
+  delegate_to: "{{ primary_host }}"
+  vars:
+    primary_host: "{{ ((r__mongodb_shell__status | default([]) | json_query(\"transformed_output.members[?stateStr==`PRIMARY`].name\"))[0]).split('.')[0] }}"

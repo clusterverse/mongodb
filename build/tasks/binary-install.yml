@@ -7,11 +7,11 @@
     name: ['openssl', 'liblzma5', 'gnupg', 'python3-pip']
     update_cache: true
 
-- name: binary-install | Install pymongo via pip (apt version is too old).
+- name: binary-install | Install pymongo and cryptography via pip (apt version is too old).
   become: true
   ansible.builtin.pip:
     break_system_packages: true
-    name: ['pymongo{{"==" + compatibility_matrix[mongodb.version.split(".")[0:2] | join(".")].pymongo_version if "pymongo_version" in compatibility_matrix[mongodb.version.split(".")[0:2] | join(".")] else ""}}']
+    name: ['pymongo{{"==" + compatibility_matrix[mongodb.version.split(".")[0:2] | join(".")].pymongo_version if "pymongo_version" in compatibility_matrix[mongodb.version.split(".")[0:2] | join(".")] else ""}}', 'cryptography']
 
 - name: binary-install | Add GPG apt Key
   become: true
@@ -24,7 +24,11 @@
 - name: binary-install | AllowInsecureRepositories if GPG key addition fails (for very old Mongo, the GPG keys are out of date)
   become: true
   ansible.builtin.copy:
-    content: 'Acquire::AllowInsecureRepositories "true";'
+    content: |
+      Acquire::AllowInsecureRepositories "true";
+      Acquire::AllowDowngradeToInsecureRepositories "true";
+      Acquire::Check-Valid-Until "false";
+      APT::Get::AllowUnauthenticated "true";
     dest: /etc/apt/apt.conf
     mode: '0644'
   when: r__apt_key.failed
@@ -32,7 +36,7 @@
 - name: binary-install | Add Repository
   become: true
   ansible.builtin.apt_repository:
-    repo: "deb [arch={{ 'amd64' if ansible_architecture == 'x86_64' else 'arm64' if ansible_architecture == 'aarch64' else ansible_architecture }}] https://repo.mongodb.org/apt/{{ansible_distribution|lower}} {{ansible_distribution_release}}/mongodb-org/{{mongodb.version | regex_replace('^([0-9])\\.([0-9]*).*', '\\1.\\2')}} multiverse"
+    repo: "deb [arch={{ 'amd64' if ansible_architecture == 'x86_64' else 'arm64' if ansible_architecture == 'aarch64' else ansible_architecture }} trusted=yes] https://repo.mongodb.org/apt/{{ansible_distribution|lower}} {{ansible_distribution_release}}/mongodb-org/{{mongodb.version | regex_replace('^([0-9])\\.([0-9]*).*', '\\1.\\2')}} multiverse"
     state: present
 
 - name: binary-install | Install mongodb-org binaries

@@ -9,9 +9,13 @@
       vars: { galaxy_collections: "{{lookup('pipe', 'ansible-galaxy collection list --format=json', errors='ignore') | from_json | json_query('*') | combine }}" }
       tags: ["always"]
 
-    - name: Redeploy | Verify the cluster's health before redeploy
-      include_role:
-        name: "mongodb/verify"
+    - name: set redeploy password
+      set_fact:
+        _redeploy_test_user_password: "{{ lookup('ansible.builtin.password', '/dev/null', chars=['ascii_lowercase', 'digits'], length=12) }}"
+
+    - name: redeploy | Verify the cluster's health *before* redeploy
+      include_role: { name: "mongodb/verify" }
+      vars: { verify_redeploy: "preamble" }
 
     - name: redeploy | Run redeploy
       include_role:
@@ -19,3 +23,7 @@
       vars:
         mainclusteryml: "cluster.yml"
         predeleterole: "mongodb/_redeploy_predelete"
+
+    - name: redeploy | Verify the cluster's health *after* redeploy
+      include_role: { name: "mongodb/verify" }
+      vars: { verify_redeploy: "postamble" }

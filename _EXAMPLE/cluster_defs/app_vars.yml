@@ -7,39 +7,40 @@ compatibility_matrix:
     ubuntu: "{{_ubuntu1604image}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools', 'mongodb-org-shell']    # add 'mongodb-org-mongos' (for sharded clusters)
     pymongo_version: "3.12.3"
+    feature_compatibility_versions: { previous: "3.4.24", next: "3.6" }     # 'previous' is uniquely set to current version here, because 3.4 is the oldest version we support
   "3.6":
     ubuntu: "{{_ubuntu1804image}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools', 'mongodb-org-shell']
     pymongo_version: "3.12.3"
-    upgrade__feature_compatibility_version: {before: "3.4"}
+    feature_compatibility_versions: { previous: "3.4.24", next: "4.0" }
   "4.0":
     ubuntu: "{{_ubuntu1804image}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools', 'mongodb-org-shell']
-    upgrade__feature_compatibility_version: {before: "3.6"}
+    feature_compatibility_versions: { previous: "3.6.23", next: "4.2" }
   "4.2":
     ubuntu: "{{_ubuntu1804image}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools', 'mongodb-org-shell']
-    upgrade__feature_compatibility_version: {before: "4.0"}
+    feature_compatibility_versions: { previous: "4.0.28", next: "4.4" }
   "4.4":
     ubuntu: "{{_ubuntu2004image}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
-    upgrade__feature_compatibility_version: {before: "4.2"}
+    feature_compatibility_versions: { previous: "4.2.25", next: "5.0" }
   "5.0":
     ubuntu: "{{_ubuntu2004image}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
-    upgrade__feature_compatibility_version: {before: "4.4"}
+    feature_compatibility_versions: { previous: "4.4.29", next: "6.0" }
   "6.0":
     ubuntu: "{{_ubuntu2004image}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
-    upgrade__feature_compatibility_version: {before: "5.0"}
+    feature_compatibility_versions: { previous: "5.0.27", next: "7.0" }
   "7.0":
     ubuntu: "{{_ubuntu2204image}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
-    upgrade__feature_compatibility_version: {before: "6.0"}
-#  "8":
+    feature_compatibility_versions: { previous: "6.0.15", next: "8.0" }
+#  "8.0":
 #    ubuntu: "{{_ubuntu2204image}}"
 #    mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
-#    upgrade__feature_compatibility_version: {before: "7.0"}
+#    feature_compatibility_versions: { previous: "7.0.11", next: "9.0" }
 
 mongodb:
   version: "{{ mongo_version | default('7.0.11') }}"   # Latest versions: "3.4.24", "3.6.23", "4.0.28", "4.2.25", "4.4.29", "5.0.27", "6.0.15", "7.0.11"
@@ -57,10 +58,9 @@ mongodb:
     systemLog:
       destination: file
       logAppend: true
-      logRotate: reopen
       path: /var/log/mongodb/mongod.log
     replication:
-      replSetName: "s0"
+      replSetName: "rs0"
     net:
       port: 27017
       bindIp: 0.0.0.0
@@ -69,7 +69,7 @@ mongodb:
         PEMKeyFile: "/etc/ssl/mongodb/mongodb.pem"
         CAFile: "/etc/ssl/mongodb/ca.pem"
         allowConnectionsWithoutCertificates: true
-    #        allowInvalidHostnames: true
+#        allowInvalidHostnames: true
     security:
       authorization: "enabled"
       clusterAuthMode: "x509"

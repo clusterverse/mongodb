@@ -1,0 +1,52 @@
+---
+
+- name: mongodb-users | Wait for converged status [All members must be in state of PRIMARY,SECONDARY, or ARBITER; One of the members must be in state PRIMARY].  (We can't use community.mongodb.mongodb_status with MongoDB <=3.4)
+  community.mongodb.mongodb_shell:
+    login_user: "{{'admin'}}"
+    login_password: "{{mongodb.admin_password}}"
+    mongo_cmd: auto
+    debug: true
+    stringify: true
+    eval: "rs.status()"
+  delegate_to: "{{ (ansible_play_hosts | sort())[0] }}"
+  register: r__mongodb_shell__status__before_createUser
+  any_errors_fatal: true
+  changed_when: false
+  retries: 10
+  until: >
+    r__mongodb_shell__status__before_createUser | json_query('transformed_output.members[?health==`0` || !(contains(`PRIMARY,SECONDARY,ARBITER` stateStr))]') | length==0 and
+    r__mongodb_shell__status__before_createUser | json_query('transformed_output.members[?stateStr==`PRIMARY`]') | length==1 
+
+- name: mongodb-users | set user passwords
+  block:
+    - name: mongodb-users | set user passwords (MongoDB 3.4 does not support community.mongodb.mongodb_user)
+      community.mongodb.mongodb_shell:
+        login_user: "admin"
+        login_password: "{{mongodb.admin_password}}"
+        mongo_cmd: auto
+        debug: true
+        stringify: false
+        eval: |-
+          const adminDB = db.getSiblingDB("admin");
+          const user = adminDB.getUser("{{item.name}}");
+          
+          if (user) {
+            adminDB.updateUser("{{item.name}}", {
+              pwd: "{{item.password}}",
+              roles: {{item.roles}}
+            });
+            print(`User {{item.name}} updated.`);
+          } else {
+            adminDB.createUser({
+              user: "{{item.name}}",
+              pwd: "{{item.password}}",
+              roles: {{item.roles}}
+            });
+            print(`User {{item.name}} created.`);
+          }
+      delegate_to: "{{ ((r__mongodb_shell__status__before_createUser | json_query(\"transformed_output.members[?stateStr==`PRIMARY`].name\"))[0]).split('.')[0] }}"
+      register: r__users_created
+      with_items: "{{ mongodb.users }}"
+
+    - name: mongodb-repset | debug r__users_created
+      debug: { msg: "{{ r__users_created }}" }

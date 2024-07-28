@@ -1,0 +1,44 @@
+from pymongo import MongoClient
+from datetime import datetime, timedelta
+import random
+import string
+
+def generate_random_string(length=1000):
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
+
+def insert_data():
+    # Replace with your actual MongoDB credentials and database details
+    mongo_host = 'localhost'
+    mongo_port = {{mongodb.mongod_conf.net.port}}
+    mongo_user = '_redeploy_test'
+    mongo_password = "{{_redeploy_test_user_password}}"
+    mongo_db = '_redeploy_test'
+
+    client = MongoClient(f'mongodb://{mongo_user}:{mongo_password}@{mongo_host}:{mongo_port}/?authSource={mongo_db}')
+    db = client[mongo_db]
+    collection = db['testdata']
+
+    total_documents = 100000
+    users = []
+
+    for i in range(total_documents):
+        user = {
+            'user_id': i,
+            'name': generate_random_string(100),
+            'email': generate_random_string(20) + '@example.com',
+            'address': generate_random_string(250),
+            'phone': ''.join(random.choices(string.digits, k=20)),
+            'bio': generate_random_string(500),
+            'created_at': datetime.now() - timedelta(days=random.randint(0, 365))
+        }
+        users.append(user)
+
+    # Insert in batches to avoid exceeding memory limits
+    batch_size = 1000
+    for i in range(0, len(users), batch_size):
+        collection.insert_many(users[i:i+batch_size])
+
+    print(f"Inserted {total_documents} documents into the collection.")
+
+if __name__ == "__main__":
+    insert_data()

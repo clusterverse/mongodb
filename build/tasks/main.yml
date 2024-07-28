@@ -1,20 +1,34 @@
 ---
 
-- name: mongodb | configure ssl for replicaset
+## For redeploy, the inventory contains the old and the new nodes, and we call the same install/configure playbooks; we need to know if mongodb is already installed, so we don't overwrite the installations on the previous cluster
+- name: mongodb | Gather apt facts (for redeploy, we need to know if mongodb is already installed, so we don't overwrite the installations on the previous cluster)
+  ansible.builtin.package_facts:
+    manager: "apt"
+
+- name: mongodb | configure ssl for replicaset (if Mongo not already installed)
   include_tasks:
     file: ssl_ownca.yml
+  when: "'mongodb-org-server' not in ansible_facts.packages"
 
-- name: mongodb | configure the host VM
+- name: mongodb | configure the host VM (if Mongo not already installed)
   include_tasks:
     file: host-config.yml
+  when: "'mongodb-org-server' not in ansible_facts.packages"
 
-- name: mongodb | install the binary
+- name: mongodb | install the binary (if Mongo not already installed)
   include_tasks:
     file: binary-install.yml
+  when: "'mongodb-org-server' not in ansible_facts.packages"
 
-- name: mongodb | configure mongodb
+- name: mongodb | configure mongodb (if Mongo not already installed)
   include_tasks:
     file: binary-config.yml
+  when: "'mongodb-org-server' not in ansible_facts.packages"
+
+- name: mongodb | configure inter-node tls (if Mongo not already installed)
+  include_tasks:
+    file: tls-config.yml
+  when: "'mongodb-org-server' not in ansible_facts.packages"
 
 - name: mongodb | flush handlers
   meta: flush_handlers
@@ -22,3 +36,7 @@
 - name: mongodb | configure mongodb replicaset
   include_tasks:
     file: replicaset.yml
+
+- name: mongodb | configure mongodb users
+  include_tasks:
+    file: users.yml

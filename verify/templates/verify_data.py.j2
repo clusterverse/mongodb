@@ -1,0 +1,32 @@
+from pymongo import MongoClient
+
+def verify_data():
+    # Replace with your actual MongoDB credentials and database details
+    mongo_host = 'localhost'
+    mongo_port = {{mongodb.mongod_conf.net.port}}
+    mongo_user = '_redeploy_test'
+    mongo_password = "{{_redeploy_test_user_password}}"
+    mongo_db = '_redeploy_test'
+
+    client = MongoClient(f'mongodb://{mongo_user}:{mongo_password}@{mongo_host}:{mongo_port}/?authSource={mongo_db}')
+    db = client[mongo_db]
+    collection = db['testdata']
+
+    total_documents = 100000
+    count = collection.count_documents({})
+
+    print(f"Expected: {total_documents}, Found: {count}")
+
+    if count != total_documents:
+        raise Exception("Data verification failed!")
+
+    # Verify the structure of a sample document
+    sample_document = collection.find_one({})
+    required_keys = ['user_id', 'name', 'email', 'address', 'phone', 'bio', 'created_at']
+    if not sample_document or not all(key in sample_document for key in required_keys):
+        raise Exception("Document structure verification failed!")
+
+    print("Data verification successful!")
+
+if __name__ == "__main__":
+    verify_data()
