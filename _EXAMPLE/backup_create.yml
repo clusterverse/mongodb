@@ -1,0 +1,83 @@
+---
+
+- name: Create backup | verify pre-create
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - { name: "Get dependent roles via ansible-galaxy", local_action: "command ansible-galaxy role install -fr requirements.yml", tags: ["always"] }
+    - { include_role: { name: "clusterverse/dynamic_inventory", apply: { tags: ["clusterverse_dynamic_inventory"]} }, tags: ["clusterverse_dynamic_inventory"] }
+    - { name: "clusterverse | Copy ansible_ssh_private_key_file", local_action: "copy content={{cluster_vars[buildenv].ssh_connection_cfg.host.ansible_ssh_private_key_file}} dest='id_rsa_ansible_ssh_private_key_file' mode='0600'", when: "cluster_vars[buildenv].ssh_connection_cfg.host.ansible_ssh_private_key_file is defined", no_log: true, tags: ["always"] }
+    - { name: "clusterverse | Copy bastion sshkey", local_action: "copy content={{cluster_vars[buildenv].ssh_connection_cfg.bastion.ssh_priv_key}} dest='id_rsa_bastion' mode='0600'", when: "cluster_vars[buildenv].ssh_connection_cfg.bastion.ssh_priv_key is defined", no_log: true, tags: ["always"] }
+
+    - name: backup_create | Verify the cluster's health *before* backup
+      include_role: { name: "mongodb/verify" }
+
+
+- name: Create backup | Perform the backup
+  hosts: mongod
+  tasks:
+    - { include_role: { name: "clusterverse/_dependencies", apply: { tags: ["always"] } }, tags: ["always"], when: "'clusterverse_config' not in ansible_run_tags" }      # If we --skip-tags=clusterverse_config, this will ensure the variables from /cluster_defs are loaded.
+
+    - name: backup_create | Get replicaset status
+      community.mongodb.mongodb_shell:
+        login_user: "admin"
+        login_password: "{{mongodb.admin_password}}"
+        mongo_cmd: auto
+        debug: true
+        stringify: true
+        eval: "rs.status()"
+      delegate_to: "{{ groups['mongod'][0] }}"
+      register: r__mongodb_shell__status
+
+    - name: backup_create | r__mongodb_shell__status
+      debug: { msg: "{{r__mongodb_shell__status}}" }
+
+    - name: backup_create | run the backup on the primary
+      block:
+        - name: backup_create | create the backup
+          become: true
+          ansible.builtin.shell: |
+            mongodump --username admin --password {{hostvars['localhost']['mongodb']['admin_password']}} --authenticationDatabase admin --oplog --gzip --archive={{remote_backup_path}}
+            chown {{mongodb.sysuser}}:{{mongodb.sysgroup}} {{remote_backup_path}}
+          register: r__mongodump_start
+          async: 7200
+          poll: 0
+          args:
+            creates: "{{remote_backup_path}}"
+
+        - name: backup_create | poll async backup job (max 2h)
+          become: true
+          async_status: { jid: "{{ r__mongodump_start.ansible_job_id }}" }
+          register: r__mongodump_async
+          until: r__mongodump_async.finished
+          retries: 120
+          delay: 60
+
+        - name: backup_create | debug r__mongodump_async
+          debug: { msg: "{{r__mongodump_async}}" }
+
+        - name: backup_create | Ensure AWS CLI v2 is installed (for Ubuntu 16.04 and later)
+          ansible.builtin.shell: |
+            if ! command -v aws > /dev/null; then
+              curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/awscliv2.zip"
+              unzip /tmp/awscliv2.zip -d /tmp
+              sudo /tmp/aws/install
+            fi
+
+        - name: backup_create | Copy the backup to S3  (NOTE - amazon.aws.s3_object module needs boto3 and botocore installed on the target host; it's not possible to get a valid version on old Ubuntu, so using aws cli)
+          become: true
+          ansible.builtin.shell: |
+            AWS_ACCESS_KEY_ID={{ {{cluster_vars[buildenv].aws_access_key }} \
+            AWS_SECRET_ACCESS_KEY={{ {{cluster_vars[buildenv].aws_secret_key }} \
+            aws s3 cp {{remote_backup_path}} s3://{{s3_backup_root}}/{{ ansible_date_time.date }}__{{mongodb.version}}.gz --region eu-west-1
+
+        - name: backup_create | remove backup file
+          become: true
+          ansible.builtin.file:
+            path: "{{remote_backup_path}}"
+            state: absent
+      delegate_to: "{{ primary_host }}"
+      run_once: true
+      vars:
+        remote_backup_path: "{{hostvars['localhost']['mongodb']['mongod_conf']['storage']['dbPath']}}/__backup_{{ ansible_date_time.date }}.gz"
+        primary_host: "{{ ((r__mongodb_shell__status | default([]) | json_query(\"transformed_output.members[?stateStr==`PRIMARY`].name\"))[0]).split('.')[0] }}"
