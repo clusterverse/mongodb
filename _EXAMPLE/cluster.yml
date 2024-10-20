@@ -22,14 +22,15 @@
     - name: "Install python 3.9 from source.  WARNING: This is not the native Python for this OS - things written for Python may not work!"
       raw: |-
         set -euxo pipefail
+        sudo sh -c 'echo "Acquire::AllowInsecureRepositories \"true\";\nAcquire::AllowDowngradeToInsecureRepositories \"true\";\nAcquire::Check-Valid-Until \"false\";\nAPT::Get::AllowUnauthenticated \"true\";" > /etc/apt/apt.conf'
         while fuser /var/lib/apt/lists/lock -v 2>&1; do sleep 5; done;
         while fuser /var/lib/dpkg/lock -v 2>&1; do sleep 5; done;
         while fuser /var/lib/dpkg/lock-frontend -v 2>&1; do sleep 5; done;
         sudo apt update
         sudo apt install -y build-essential zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev wget libapt-pkg-dev
-        wget https://www.python.org/ftp/python/3.9.19/Python-3.9.19.tgz --output-document=Python-3.9.19.tgz
-        tar xzf Python-3.9.19.tgz
-        cd Python-3.9.19/
+        wget https://www.python.org/ftp/python/3.9.21/Python-3.9.21.tgz --output-document=Python-3.9.21.tgz
+        tar xzf Python-3.9.21.tgz
+        cd Python-3.9.21/
         sudo ./configure
         sudo make altinstall
         sudo ln -sf /usr/local/bin/python3.9 /usr/bin/python3 
@@ -46,7 +47,7 @@
       delay: 30
       vars:
         ansible_ssh_retries: 10
-      when: hostvars['localhost']['cluster_vars']['image'] | regex_search('16[\._]?04|xenial|18[\._]?04|bionic') is truthy
+      when: hostvars['localhost']['cluster_vars']['image'] | regex_search('xenial|bionic') | bool
 
 
 - name: clusterverse | Configure the cluster

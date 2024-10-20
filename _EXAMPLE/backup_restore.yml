@@ -34,6 +34,9 @@
 
     - name: backup_restore | run the restore on the primary
       block:
+        - name: backup_restore | debug all_mongodb_hosts
+          debug: { msg: "{{ all_mongodb_hosts }}" }
+
         - name: backup_restore | Ensure AWS CLI v2 is installed (for Ubuntu 16.04 and later)
           ansible.builtin.shell: |
             if ! command -v aws > /dev/null; then
@@ -41,6 +44,11 @@
               unzip /tmp/awscliv2.zip -d /tmp
               sudo /tmp/aws/install
             fi
+
+        - name: backup_restore | Remove old backup files
+          become: true
+          ansible.builtin.shell: |
+            find "{{mongodb.mongod_conf.storage.dbPath}}" -type f -name '__backup_*' ! -path "{{remote_backup_path}}" -delete
 
         - name: backup_restore | Get the backup from S3  (NOTE - amazon.aws.s3_object module needs boto3 and botocore installed on the target host; it's not possible to get a valid version on old Ubuntu, so using aws cli)
           become: true
@@ -77,7 +85,7 @@
         - name: backup_restore | drop the existing databases
           community.mongodb.mongodb_shell:
             login_user: "admin"
-            login_password: "{{hostvars['localhost']['mongodb']['admin_password']}}"
+            login_password: "{{mongodb.admin_password}}"
             mongo_cmd: auto
             debug: true
             stringify: true
@@ -87,8 +95,8 @@
           with_items: ['pro_db', 'anonymizedDataConfidential_db']
 
         - name: backup_restore | restore the backup
-          ansible.builtin.shell: |
-            mongorestore --username admin --password {{hostvars['localhost']['mongodb']['admin_password']}} --authenticationDatabase admin --gzip --archive={{remote_backup_path}}
+          ansible.builtin.command: |
+            mongorestore --username admin --password {{mongodb.admin_password}} --numParallelCollections=3 --numInsertionWorkersPerCollection=2 --authenticationDatabase admin --gzip --archive={{remote_backup_path}} -vvv
           register: r__mongorestore_start
           async: 7200
           poll: 0
@@ -99,6 +107,8 @@
           until: r__mongorestore_async.finished
           retries: 120
           delay: 60
+          vars:
+            ansible_ssh_retries: 10
 
         - name: backup_restore | debug r__mongorestore_async
           debug: { msg: "{{r__mongorestore_async}}" }
@@ -135,9 +145,9 @@
       delegate_to: "{{ primary_host }}"
       run_once: true
       vars:
-        remote_backup_path: "{{hostvars['localhost']['mongodb']['mongod_conf']['storage']['dbPath']}}/__backup_{{ ansible_date_time.date }}.gz"
+        remote_backup_path: "{{mongodb.mongod_conf.storage.dbPath}}/__backup_{{ ansible_date_time.date }}.gz"
         primary_host: "{{ ((r__mongodb_shell__status | default([]) | json_query(\"transformed_output.members[?stateStr==`PRIMARY`].name\"))[0]).split('.')[0] }}"
-        all_mongodb_hosts: "{{hostvars | dict2items | json_query(\"[].{hostname: key, ip: value.ansible_host}\") + [{'hostname': 'localhost', 'ip': '127.0.0.1'}] }}"
+        all_mongodb_hosts: "{{ groups['mongod'] | map('extract', hostvars) | json_query(\"[].{hostname: hostname, ip: ansible_default_ipv4.address}\") + [{'hostname': 'localhost', 'ip': '127.0.0.1'}] }}"
 
     - name: backup_restore | update users
       include_role:

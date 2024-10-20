@@ -9,7 +9,7 @@
       vars: { galaxy_collections: "{{lookup('pipe', 'ansible-galaxy collection list --format=json', errors='ignore') | from_json | json_query('*') | combine }}" }
       tags: ["always"]
 
-    - name: set redeploy password
+    - name: redeploy | set redeploy password
       set_fact:
         _redeploy_test_user_password: "{{ lookup('ansible.builtin.password', '/dev/null', chars=['ascii_lowercase', 'digits'], length=12) }}"
 

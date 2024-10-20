@@ -53,6 +53,7 @@
         state: absent
       with_items: "{{r__copy_test_files.results | map(attribute='dest') }}"
   when: verify_redeploy is defined
-  delegate_to: "{{ primary_host }}"
+  delegate_to: "{{ mongod_status_primary_hostname }}"
   vars:
-    primary_host: "{{ ((r__mongodb_shell__status | default([]) | json_query(\"transformed_output.members[?stateStr==`PRIMARY`].name\"))[0]).split('.')[0] }}"
+    _mongod_status_primary: "{{ (r__mongodb_shell__status | default([]) | json_query(\"transformed_output.members[?stateStr==`PRIMARY`].name\"))[0] }}"
+    mongod_status_primary_hostname: "{% if _mongod_status_primary is match('^\\d+\\.\\d+\\.\\d+\\.\\d+') %}{{ groups['all'] | map('extract', hostvars) | selectattr('ansible_host', 'defined') | selectattr('ansible_host', 'equalto', _mongod_status_primary.split(':')[0] ) | map(attribute='inventory_hostname') | first }}{% else %}{{ _mongod_status_primary.split('.')[0] }}{% endif %}"

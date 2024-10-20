@@ -52,6 +52,8 @@
           until: r__mongodump_async.finished
           retries: 120
           delay: 60
+          vars:
+            ansible_ssh_retries: 10
 
         - name: backup_create | debug r__mongodump_async
           debug: { msg: "{{r__mongodump_async}}" }

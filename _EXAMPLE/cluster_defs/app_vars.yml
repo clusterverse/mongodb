@@ -32,18 +32,18 @@ compatibility_matrix:
   "6.0":
     ubuntu: "{{_ubuntu2004image}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
-    feature_compatibility_versions: { previous: "5.0.27", next: "7.0" }
+    feature_compatibility_versions: { previous: "5.0.31", next: "7.0" }
   "7.0":
     ubuntu: "{{_ubuntu2204image}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
-    feature_compatibility_versions: { previous: "6.0.15", next: "8.0" }
-#  "8.0":
-#    ubuntu: "{{_ubuntu2204image}}"
-#    mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
-#    feature_compatibility_versions: { previous: "7.0.11", next: "9.0" }
+    feature_compatibility_versions: { previous: "6.0.22", next: "8.0" }
+  "8.0":
+    ubuntu: "{{_ubuntu2404image}}"
+    mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
+    feature_compatibility_versions: { previous: "7.0.19", next: "9.0" }
 
 mongodb:
-  version: "{{ mongo_version | default('7.0.11') }}"   # Latest versions: "3.4.24", "3.6.23", "4.0.28", "4.2.25", "4.4.29", "5.0.27", "6.0.15", "7.0.11"
+  version: "{{ mongo_version | default('7.0.11') }}"   # Latest versions: "3.4.24", "3.6.23", "4.0.28", "4.2.25", "4.4.29", "5.0.31", "6.0.22", "7.0.19", "8.0.9"
   sysuser: "mongodb"
   sysgroup: "mongodb"
   admin_password: "admin_password"

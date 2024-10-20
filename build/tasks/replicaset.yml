@@ -18,31 +18,41 @@
         eval: "rs.status()"
       ignore_errors: true
       changed_when: false
-      failed_when: "r__mongodb_shell__status.failed  and  r__mongodb_shell__status.msg is not regex('no replset config has been received')"
-      register: r__mongodb_shell__status
+      failed_when: "r__mongodb_shell__status_initial.failed  and  r__mongodb_shell__status_initial.msg is not regex('no replset config has been received')"
+      register: r__mongodb_shell__status_initial
       delegate_to: "{{ item.1 }}"
       with_nested:
         - ["admin_pw_enabled", "admin_pw_not_enabled"]
         - "{{ ansible_play_hosts }}"
 
-    - name: replicaset | r__mongodb_shell__status (before create replicaset)
-      debug: { msg: "{{ r__mongodb_shell__status }}" }
+    - name: replicaset | r__mongodb_shell__status_initial (before create replicaset)
+      debug: { msg: "{{ r__mongodb_shell__status_initial }}" }
 
-    - name: replicaset | fail when all r__mongodb_shell__status failed
+    - name: replicaset | fail when all r__mongodb_shell__status_initial failed
       fail: { msg: "All hosts failed to get either a valid or unset replicaset status" }
-      when: r__mongodb_shell__status | selectattr('failed', 'defined') | selectattr('failed', 'equalto', true) | list | length == ansible_play_hosts | length
+      when: r__mongodb_shell__status_initial | selectattr('failed', 'defined') | selectattr('failed', 'equalto', true) | list | length == ansible_play_hosts | length
 
     - block:
         - name: replicaset | debug is_repset_configured
           debug: { msg: "{{is_repset_configured}}" }
 
+        - name: replicaset | debug _repset_invalid_nodes
+          debug: { msg: "{{_repset_invalid_nodes}}" }
+
         - name: replicaset | debug is_repset_invalid
           debug: { msg: "{{is_repset_invalid}}" }
 
-        - name: replicaset | primary mongodb node (if repset is configured)
-          debug: { msg: "{{primary_node}}" }
+        - name: replicaset | debug mongod_status_initial_primary (if repset is configured)
+          debug: { msg: "{{mongod_status_initial_primary}}" }
 
-        - name: replicaset | initialise/create replicaset.  Must be delegated to the primary when a replicaset already exists.  Must be 'forced' when a single node is InvalidReplicaSetConfig (e.g. we've moved the disk during a redeploy).  Need to use community.mongodb.mongodb_shell for Mongo3.4.
+        - name: replicaset | cluster_vars.dns_user_domain
+          debug: { msg: "{{ cluster_vars.dns_user_domain }}" }
+
+        - name: replicaset | ansible_play_hosts
+          debug: { msg: "{{ ansible_play_hosts }}" }
+
+
+        - name: replicaset | initialise/create replicaset. We do reconfigure (instead of initialise) when the cluster already exists, so that redeploys are handled.  Must be delegated to the primary when a replicaset already exists.  Need to use community.mongodb.mongodb_shell for Mongo3.4.
           community.mongodb.mongodb_shell:
             login_user: "{{'admin' if is_repset_configured else omit}}"
             login_password: "{{mongodb.admin_password if is_repset_configured else omit}}"
@@ -55,7 +65,7 @@
               } catch (e) {
                 var status = { ok: 0 };
               }
-              var members = {{ ansible_play_hosts | map('regex_replace', '^(.*)$', '\1' + '.' + cluster_vars.dns_user_domain + ':' +  mongodb.mongod_conf.net.port|string) | list | to_json }};
+              var members = {{ ((ansible_play_hosts | map('extract', hostvars, ['ansible_host'])) if (cluster_vars.dns_user_domain is falsy)  else  (ansible_play_hosts | map('regex_replace', '^(.*)$', '\1' + '.' + cluster_vars.dns_user_domain))) | map('regex_replace', '^(.*)$', '\1' + ':' + mongodb.mongod_conf.net.port|string) | sort }};
 
               function createMemberConfig(members, currentMembers) {
                 var memberConfig = [];
@@ -88,26 +98,26 @@
                     _id: "{{ mongodb.mongod_conf.replication.replSetName }}",
                     protocolVersion: 1,
                     members: newConfig
-                  }, { force: {{'true' if is_repset_invalid else 'false'}} });
+                  }, { force: {{'true' if (is_repset_invalid or is_repset_multiple_nodes_unconfigured) else 'false'}} });
                 }
               }
-          delegate_to: "{{ primary_node.split('.')[0] if primary_node and is_repset_configured else (ansible_play_hosts | sort())[0] }}"
-          register: r__mongodb_replicaset
+          delegate_to: "{% if mongod_status_initial_primary and is_repset_configured %}{{ mongod_status_initial_primary_hostname | default('_dummy') }}{% else %}{{ (ansible_play_hosts | sort())[0] }}{% endif %}"
           retries: 30
           until: r__mongodb_replicaset is success
+          register: r__mongodb_replicaset
 #          when: mongodb.version.split('.')[0:2] | join('.') is version('4.0', '<=' )    # NOTE: whilst v3.6 is supports mongodb_replicaset, if we're doing a redeploy to v3.6, we'll also be running this on v3.4 nodes.
 #
 #          ## NOTE - not supported on MongoDB 3.4
-#        - name: replicaset | initialise/create replicaset. We do reconfigure (instead of initialise) when the cluster already exists, so that redeploys are handled.  Need to set validate false because the module thinks only 2 replicas are valid.  Must be delegated to the primary when a replicaset already exists. Must be 'forced' when a single node is InvalidReplicaSetConfig (e.g. we've moved the disk during a redeploy)
+#        - name: replicaset | initialise/create replicaset. We do reconfigure (instead of initialise) when the cluster already exists, so that redeploys are handled.  Need to set validate false because the module thinks only 2 replicas are valid.  Must be delegated to the primary when a replicaset already exists.
 #          community.mongodb.mongodb_replicaset:
 #            login_user: "{{'admin' if is_repset_configured else omit}}"
 #            login_password: "{{mongodb.admin_password if is_repset_configured else omit}}"
 #            replica_set: "{{mongodb.mongod_conf.replication.replSetName}}"
-#            members: "{{ ansible_play_hosts | map('regex_replace', '^(.*)$', '\\1' + '.' + cluster_vars.dns_user_domain + ':' +  mongodb.mongod_conf.net.port|string) | sort }}"
+#            members: "{{ ((ansible_play_hosts | map('extract', hostvars, ['ansible_host'])) if (cluster_vars.dns_user_domain is falsy)  else  (ansible_play_hosts | map('regex_replace', '^(.*)$', '\\1' + '.' + cluster_vars.dns_user_domain))) | map('regex_replace', '^(.*)$', '\\1' + ':' + mongodb.mongod_conf.net.port|string) | sort }}"
 #            reconfigure: "{{'true' if is_repset_configured else 'false'}}"
-#            force: "{{'true' if is_repset_invalid else 'false'}}"
+#            force: "{{'true' if (is_repset_invalid or is_repset_multiple_nodes_unconfigured) else 'false'}}"
 #            validate: false
-#          delegate_to: "{{ primary_node.split('.')[0] if primary_node and is_repset_configured else (ansible_play_hosts | sort())[0] }}"
+#          delegate_to: "{% if mongod_status_initial_primary and is_repset_configured %}{{ mongod_status_initial_primary_hostname | default('_dummy') }}{% else %}{{ (ansible_play_hosts | sort())[0] }}{% endif %}"
 #          register: r__mongodb_replicaset
 #          retries: 30
 #          until: r__mongodb_replicaset is success
@@ -124,10 +134,10 @@
             debug: true
             stringify: true
             eval: "rs.status()"
-          delegate_to: "{{ primary_node.split('.')[0] if primary_node and is_repset_configured else (ansible_play_hosts | sort())[0] }}"
-          register: r__mongodb_shell__status__after_create_replicaset
+          delegate_to: "{% if mongod_status_initial_primary and is_repset_configured %}{{ mongod_status_initial_primary_hostname | default('_dummy') }}{% else %}{{ (ansible_play_hosts | sort())[0] }}{% endif %}"
           any_errors_fatal: true
           changed_when: false
+          register: r__mongodb_shell__status__after_create_replicaset
           retries: 10
           until: >
             r__mongodb_shell__status__after_create_replicaset | json_query('transformed_output.members[?health==`0` || !(contains(`PRIMARY,SECONDARY,ARBITER` stateStr))]') | length==0 and
@@ -145,15 +155,21 @@
                 stringify: true
                 db: "admin"
                 eval: "db.createUser( { user: 'admin', pwd: \"{{mongodb.admin_password}}\", roles: [ { role: 'root', db: 'admin' } ] })"
-              delegate_to: "{{ ((r__mongodb_shell__status__after_create_replicaset | json_query(\"transformed_output.members[?stateStr==`PRIMARY`].name\"))[0]).split('.')[0] }}"
+              delegate_to: "{{ mongod_status_after_create_primary_hostname | default('_dummy') }}"
               retries: 2        # The primary may not be ready to accept connections immediately after the replicaset is created
               register: admin_user_created
+              vars:
+                mongod_status_after_create_primary: "{{ (r__mongodb_shell__status__after_create_replicaset | json_query('transformed_output.members[?stateStr==`PRIMARY`].name'))[0] }}"
+                mongod_status_after_create_primary_hostname: "{% if mongod_status_after_create_primary is match('^\\d+\\.\\d+\\.\\d+\\.\\d+') %}{{ ansible_play_hosts | map('extract', hostvars) | selectattr('ansible_host', 'defined') | selectattr('ansible_host', 'equalto', mongod_status_after_create_primary.split(':')[0] ) | map(attribute='inventory_hostname') | first }}{% else %}{{ mongod_status_after_create_primary.split('.')[0] }}{% endif %}"
 
             - name: replicaset | debug admin_user_created
               debug: { msg: "{{ admin_user_created }}" }
           when: not is_repset_configured
       vars:
-        primary_node: "{{ r__mongodb_shell__status.results | default([]) | json_query(\"[].transformed_output.members[?stateStr==`PRIMARY`].name[] |[0]\") }}"
-        is_repset_configured: "{{ ( r__mongodb_shell__status.results | json_query(\"[? contains(msg, `no replset config has been received`) || (transformed_output.errmsg && contains(transformed_output.errmsg, `no replset config has been received`))].item\") | length != (ansible_play_hosts|length) ) }}"     #The 'transformed_output.errmsg, `no replset' part of the test clause is only for Mongo<4.4 (for some reason removed the information in the transformed_output)
-        is_repset_invalid:    "{{ ( r__mongodb_shell__status.results | json_query(\"[? contains(msg, `replica set config is invalid or we are not a member of it`) || (transformed_output.errmsg && contains(transformed_output.errmsg, `replica set config is invalid or we are not a member of it`))].item\") | length == (ansible_play_hosts|length) ) }}"     #The 'transformed_output.errmsg, `no replset' part of the test clause is only for Mongo<4.4
+        mongod_status_initial_primary: "{{ r__mongodb_shell__status_initial.results | default([]) | json_query(\"[].transformed_output.members[?stateStr==`PRIMARY`].name[] | [0]\") }}"
+        mongod_status_initial_primary_hostname: "{% if mongod_status_initial_primary is match('^\\d+\\.\\d+\\.\\d+\\.\\d+') %}{{ ansible_play_hosts | map('extract', hostvars) | selectattr('ansible_host', 'defined') | selectattr('ansible_host', 'equalto', mongod_status_initial_primary.split(':')[0] ) | map(attribute='inventory_hostname') | first }}{% else %}{{ mongod_status_initial_primary.split('.')[0] }}{% endif %}"
+        is_repset_configured: "{{ r__mongodb_shell__status_initial.results | json_query(\"[? contains(msg, `no replset config has been received`) || (transformed_output.errmsg && contains(transformed_output.errmsg, `no replset config has been received`))].item\") | length != (ansible_play_hosts|length) }}"     #The 'transformed_output.errmsg, `no replset' part of the test clause is only for Mongo<4.4 (for some reason removed the information in the transformed_output)
+        is_repset_multiple_nodes_unconfigured: "{{ r__mongodb_shell__status_initial.results | json_query(\"[? contains(msg, `no replset config has been received`) || (transformed_output.errmsg && contains(transformed_output.errmsg, `no replset config has been received`))].item\") | length > 1 }}"     #The 'transformed_output.errmsg, `no replset' part of the test clause is only for Mongo<4.4 (for some reason removed the information in the transformed_output)
+        _repset_invalid_nodes: "{{ r__mongodb_shell__status_initial.results | json_query(\"[? contains(msg, `replica set config is invalid or we are not a member of it`) || (transformed_output.errmsg && contains(transformed_output.errmsg, `replica set config is invalid or we are not a member of it`))]\") }}"    #NOTE: if we do '| length | int' here, we still end up with a string, so we check the length later.
+        is_repset_invalid: "{{ (ansible_play_hosts|length == 1) | ternary(_repset_invalid_nodes|length==1, _repset_invalid_nodes|length>1)}}"   #NOTE: This tests for invalidity of the only node in a single-node cluster, or more than one node in a multi-node cluster (this can only happen if we use the unofficially-supported (fast) redeploy scheme: _scheme_addallnew_rmdisk_rollback.
   run_once: true

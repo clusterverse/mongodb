@@ -27,26 +27,30 @@
         debug: true
         stringify: false
         eval: |-
-          const adminDB = db.getSiblingDB("admin");
-          const user = adminDB.getUser("{{item.name}}");
+          const pw_db = db.getSiblingDB("{{item.pw_database}}");
+          const user = pw_db.getUser("{{item.name}}");
           
           if (user) {
-            adminDB.updateUser("{{item.name}}", {
+            pw_db.updateUser("{{item.name}}", {
               pwd: "{{item.password}}",
               roles: {{item.roles}}
             });
             print(`User {{item.name}} updated.`);
           } else {
-            adminDB.createUser({
+            pw_db.createUser({
               user: "{{item.name}}",
               pwd: "{{item.password}}",
               roles: {{item.roles}}
             });
             print(`User {{item.name}} created.`);
           }
-      delegate_to: "{{ ((r__mongodb_shell__status__before_createUser | json_query(\"transformed_output.members[?stateStr==`PRIMARY`].name\"))[0]).split('.')[0] }}"
+      no_log: true
+      delegate_to: "{{ r__mongodb_shell__status__before_createUser__primary_host | default('_dummy') }}"
+      when: r__mongodb_shell__status__before_createUser__primary_host is truthy
       register: r__users_created
       with_items: "{{ mongodb.users }}"
+      vars:
+        r__mongodb_shell__status__before_createUser__primary_host: "{% if cluster_vars.dns_user_domain is falsy %}{{ ansible_play_hosts | map('extract', hostvars) | selectattr('ansible_host', 'defined') | selectattr('ansible_host', 'equalto', ((r__mongodb_shell__status__before_createUser | json_query('transformed_output.members[?stateStr==`PRIMARY`].name'))[0]).split(':')[0] ) | map(attribute='inventory_hostname') | first }}{% else %}{{ ((r__mongodb_shell__status__before_createUser | json_query('transformed_output.members[?stateStr==`PRIMARY`].name'))[0]).split('.')[0] }}{% endif %}"
 
-    - name: mongodb-repset | debug r__users_created
-      debug: { msg: "{{ r__users_created }}" }
+#    - name: mongodb-users | debug r__users_created    NOTE - this is commented out because it outputs the password in plain text
+#      debug: { msg: "{{ r__users_created }}" }

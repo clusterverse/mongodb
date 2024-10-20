@@ -6,19 +6,19 @@
   become: true
   dseeley.tasks_serial.tasks_serial:
     tasks:
-      - name: service
+      - name: ansible.builtin.service
         args:
           name: mongod
           state: restarted
           enabled: true
-      - name: wait_for
+      - name: ansible.builtin.wait_for
         args:
           host: localhost
           port: "{{mongodb.mongod_conf.net.port}}"
           timeout: 60
-      - name: ansible.builtin.pause
+      - name: ansible.builtin.wait_for
         args:
-          seconds: 20
+          timeout: 20
   throttle: 1
 
 - name: restart thp-disable.service

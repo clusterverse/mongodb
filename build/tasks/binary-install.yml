@@ -1,10 +1,9 @@
 ---
 
-
 - name: binary-install | Install required packages and libraries
   become: true
   apt:
-    name: ['openssl', 'liblzma5', 'gnupg', 'python3-pip']
+    name: ['openssl', 'liblzma5', 'gnupg', 'python3-pip', 'unzip']
     update_cache: true
 
 - name: binary-install | Install pymongo and cryptography via pip (apt version is too old).
@@ -13,36 +12,61 @@
     break_system_packages: true
     name: ['pymongo{{"==" + compatibility_matrix[mongodb.version.split(".")[0:2] | join(".")].pymongo_version if "pymongo_version" in compatibility_matrix[mongodb.version.split(".")[0:2] | join(".")] else ""}}', 'cryptography']
 
-- name: binary-install | Add GPG apt Key
-  become: true
-  ansible.builtin.apt_key:
-    url: "https://www.mongodb.org/static/pgp/server-{{mongodb.version | regex_replace('^([0-9])\\.([0-9]*).*', '\\1.\\2')}}.asc"
-    state: present
-  ignore_errors: true
-  register: r__apt_key
+- name: binary-install | Add apt repository and key
+  block:
+    - name: binary-install | Add key and repository (using old apt_key method, deprecated in Ubuntu24.04)
+      block:
+        - name: binary-install | Add GPG apt Key
+          become: true
+          ansible.builtin.apt_key:
+            url: "https://www.mongodb.org/static/pgp/server-{{mongodb.version | regex_replace('^([0-9])\\.([0-9]*).*', '\\1.\\2')}}.asc"
+            state: present
+          ignore_errors: true
+          register: r__apt_key
 
-- name: binary-install | AllowInsecureRepositories if GPG key addition fails (for very old Mongo, the GPG keys are out of date)
-  become: true
-  ansible.builtin.copy:
-    content: |
-      Acquire::AllowInsecureRepositories "true";
-      Acquire::AllowDowngradeToInsecureRepositories "true";
-      Acquire::Check-Valid-Until "false";
-      APT::Get::AllowUnauthenticated "true";
-    dest: /etc/apt/apt.conf
-    mode: '0644'
-  when: r__apt_key.failed
+        - name: binary-install | AllowInsecureRepositories if GPG key addition fails (for very old Mongo, the GPG keys are out of date)
+          become: true
+          ansible.builtin.copy:
+            content: |
+              Acquire::AllowInsecureRepositories "true";
+              Acquire::AllowDowngradeToInsecureRepositories "true";
+              Acquire::Check-Valid-Until "false";
+              APT::Get::AllowUnauthenticated "true";
+            dest: /etc/apt/apt.conf
+            mode: '0644'
+          when: r__apt_key.failed
 
-- name: binary-install | Add Repository
-  become: true
-  ansible.builtin.apt_repository:
-    repo: "deb [arch={{ 'amd64' if ansible_architecture == 'x86_64' else 'arm64' if ansible_architecture == 'aarch64' else ansible_architecture }} trusted=yes] https://repo.mongodb.org/apt/{{ansible_distribution|lower}} {{ansible_distribution_release}}/mongodb-org/{{mongodb.version | regex_replace('^([0-9])\\.([0-9]*).*', '\\1.\\2')}} multiverse"
-    state: present
+        - name: binary-install | Add Repository
+          become: true
+          ansible.builtin.apt_repository:
+            repo: "deb [arch={{ 'amd64' if ansible_architecture == 'x86_64' else 'arm64' if ansible_architecture == 'aarch64' else ansible_architecture }} trusted=yes] https://repo.mongodb.org/apt/{{ansible_distribution|lower}} {{ansible_distribution_release}}/mongodb-org/{{mongodb.version | regex_replace('^([0-9])\\.([0-9]*).*', '\\1.\\2')}} multiverse"
+            state: present
+      when: mongodb.version.split('.')[0:2] | join('.') is version('4.4', '<' )
+
+    - name: binary-install | Add Repository and key (using new method, supported in > Ubuntu20.04, required by Ubuntu24.04.1)
+      become: true
+      ansible.builtin.deb822_repository:
+        name: mongodb
+        types: [deb]
+        architectures: "{{ 'amd64' if ansible_architecture == 'x86_64' else 'arm64' if ansible_architecture == 'aarch64' else ansible_architecture }}"
+        uris: "https://repo.mongodb.org/apt/{{ansible_distribution|lower}}"
+        suites:
+          - "{{ansible_distribution_release}}/mongodb-org/{{mongodb.version | regex_replace('^([0-9])\\.([0-9]*).*', '\\1.\\2')}}"
+        components: [multiverse]
+        signed_by: "https://www.mongodb.org/static/pgp/server-{{mongodb.version | regex_replace('^([0-9])\\.([0-9]*).*', '\\1.\\2')}}.asc"
+        allow_insecure: true
+        check_date: false
+        check_valid_until: false
+        trusted: true
+        state: present
+        enabled: true
+      when: mongodb.version.split('.')[0:2] | join('.') is version('4.4', '>=' )
+  when: ansible_os_family == 'Debian'
 
 - name: binary-install | Install mongodb-org binaries
   become: true
   ansible.builtin.apt:
-    allow_unauthenticated: "{{'true' if r__apt_key.failed else omit}}"
+    allow_unauthenticated: true
     update_cache: true
     name: "{{ compatibility_matrix[mongodb.version.split('.')[0:2] | join('.')].mongo_org_binaries | map('regex_replace', '^(.*)$', '\\1=' + mongodb.version) | list }}"
     state: present
@@ -50,7 +74,7 @@
 - name: binary-install | Install standalone mongosh if not installing mongodb-org-shell
   become: true
   ansible.builtin.apt:
-    allow_unauthenticated: "{{'true' if r__apt_key.failed else omit}}"
+    allow_unauthenticated: true
     update_cache: true
     name: ['mongodb-mongosh']
     state: present
