@@ -5,7 +5,7 @@ ssh_whitelist: ['10.0.0.0/8']
 
 cluster_vars:
   dns_cloud_internal_domain: "{{region}}.compute.internal"    # The cloud-internal zone as defined by the cloud provider (e.g. GCP, AWS)
-  dns_nameserver_zone: &dns_nameserver_zone ""               # The apex zone that dns_server will operate on.  gcloud dns needs a trailing '.'.  Leave blank if no external DNS (use IPs only)
+  dns_nameserver_zone: &dns_nameserver_zone ""                # The apex zone that dns_server will operate on.  gcloud dns needs a trailing '.'.  Leave blank if no external DNS (use IPs only)
   dns_user_domain: *dns_nameserver_zone                       # A user-defined subdomain part of the FDQN, (e.g. if more labels are required before the dns_nameserver_zone)
   dns_server: "route53"                                       # Specify DNS server. nsupdate, route53 or clouddns.  If empty string is specified, no DNS will be added.
   assign_public_ip: "dynamic"                                 # Whether a 'dynamic' (will change on stop/start), 'static' (e.g. elastic IP), or no public IP should be assigned.   NOTE: for Azure 'Standard' instance types, only static IPs are supported
@@ -14,7 +14,7 @@ cluster_vars:
   user_data: |-
     #cloud-config
     system_info: { default_user: { name: ansible } }
-#    swap: { filename: /swap.img, size: auto, maxsize: 4G }
+    swap: { filename: /swap.img, size: auto, maxsize: 4G }
   secgroups_existing: []
   secgroup_new:
     - proto: "tcp"

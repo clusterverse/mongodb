@@ -1,5 +1,14 @@
 ---
 
+- name: binary-config | Update the ExecStart line in the mongod service file to run through numactl --interleave=all
+  become: true
+  lineinfile:
+    path: /lib/systemd/system/mongod.service
+    regexp: '^ExecStart=(.*)$'
+    line: 'ExecStart=/usr/bin/numactl --interleave=all \1'
+    backrefs: true
+  notify: restart mongodb
+
 - name: binary-config | Change data and log directory ownership (recursively, for redeploy with keepdisks scheme).  Must do after mount because ext4 cannot be mounted with uid/gid options.  Must do after Mongo install so the user/group have been created.
   become: true
   file:

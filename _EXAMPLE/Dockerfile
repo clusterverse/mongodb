@@ -11,4 +11,4 @@ WORKDIR /usr/src/app
 
 COPY . .
 
-RUN ansible-galaxy collection install -fr requirements.yml
+RUN ansible-galaxy install -r requirements.yml

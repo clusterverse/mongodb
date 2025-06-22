@@ -18,6 +18,13 @@
   tasks:
     - { include_role: { name: "clusterverse/_dependencies", apply: { tags: ["always"] } }, tags: ["always"], when: "'clusterverse_config' not in ansible_run_tags" }      # If we --skip-tags=clusterverse_config, this will ensure the variables from /cluster_defs are loaded.
 
+    - name: backup_restore | Get AWS SSO credentials as environment variables when AWS_PROFILE is set
+      ansible.builtin.shell: |
+        aws configure export-credentials --profile {{ lookup('env', 'AWS_PROFILE') }}
+      delegate_to: localhost
+      run_once: true
+      register: aws_sso_creds_env
+
     - name: backup_create | Get replicaset status
       community.mongodb.mongodb_shell:
         login_user: "admin"
@@ -37,7 +44,7 @@
         - name: backup_create | create the backup
           become: true
           ansible.builtin.shell: |
-            mongodump --username admin --password {{hostvars['localhost']['mongodb']['admin_password']}} --authenticationDatabase admin --oplog --gzip --archive={{remote_backup_path}}
+            mongodump --username admin --password {{mongodb.admin_password}} --authenticationDatabase admin --oplog --gzip --archive={{remote_backup_path}}
             chown {{mongodb.sysuser}}:{{mongodb.sysgroup}} {{remote_backup_path}}
           register: r__mongodump_start
           async: 7200
@@ -69,9 +76,10 @@
         - name: backup_create | Copy the backup to S3  (NOTE - amazon.aws.s3_object module needs boto3 and botocore installed on the target host; it's not possible to get a valid version on old Ubuntu, so using aws cli)
           become: true
           ansible.builtin.shell: |
-            AWS_ACCESS_KEY_ID={{ {{cluster_vars[buildenv].aws_access_key }} \
-            AWS_SECRET_ACCESS_KEY={{ {{cluster_vars[buildenv].aws_secret_key }} \
             aws s3 cp {{remote_backup_path}} s3://{{s3_backup_root}}/{{ ansible_date_time.date }}__{{mongodb.version}}.gz --region eu-west-1
+          environment:
+            AWS_ACCESS_KEY_ID: "{{ cluster_vars[buildenv].aws_access_key if not lookup('env', 'AWS_PROFILE') else (aws_sso_creds_env.stdout | from_json).AccessKeyId }}"
+            AWS_SECRET_ACCESS_KEY: "{{ cluster_vars[buildenv].aws_secret_key if not lookup('env', 'AWS_PROFILE') else (aws_sso_creds_env.stdout | from_json).SecretAccessKey }}"
 
         - name: backup_create | remove backup file
           become: true
@@ -81,5 +89,5 @@
       delegate_to: "{{ primary_host }}"
       run_once: true
       vars:
-        remote_backup_path: "{{hostvars['localhost']['mongodb']['mongod_conf']['storage']['dbPath']}}/__backup_{{ ansible_date_time.date }}.gz"
+        remote_backup_path: "{{mongodb.mongod_conf.storage.dbPath}}/__backup_{{ ansible_date_time.date }}.gz"
         primary_host: "{{ ((r__mongodb_shell__status | default([]) | json_query(\"transformed_output.members[?stateStr==`PRIMARY`].name\"))[0]).split('.')[0] }}"

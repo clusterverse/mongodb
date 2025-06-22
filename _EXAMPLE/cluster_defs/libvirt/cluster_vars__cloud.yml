@@ -13,7 +13,7 @@ _ubuntu1804image: "gold-ubuntu1804-.*"                     # Latest Ubuntu Bioni
 cluster_vars:
   image: "{{compatibility_matrix[mongodb.version.split('.')[0:2] | join('.')].ubuntu}}"
   dns_cloud_internal_domain: ""                               # The cloud-internal zone as defined by the cloud provider (e.g. GCP, AWS)
-  dns_nameserver_zone: &dns_nameserver_zone ""               # The apex zone that dns_server will operate on.  gcloud dns needs a trailing '.'; leave blank for no DNS (IPs only)
+  dns_nameserver_zone: &dns_nameserver_zone ""                # The apex zone that dns_server will operate on.  gcloud dns needs a trailing '.'; leave blank for no DNS (IPs only)
   dns_user_domain: *dns_nameserver_zone                       # A user-defined subdomain part of the FDQN, (e.g. if more labels are required before the dns_nameserver_zone)
   dns_server: ""                                              # Specify DNS server. nsupdate, route53 or clouddns.  If empty string is specified, no DNS will be added.
   inventory_ip: "private"                                     # 'public' or 'private', (private in case we're operating in a private LAN).  If public, 'assign_public_ip' must be 'static' or 'dynamic'
@@ -31,6 +31,6 @@ cluster_vars:
           sudo: "ALL=(ALL) NOPASSWD:ALL"
           lock_passwd: false
           shell: /bin/bash
-#      system_info: { default_user: ~ }                           # Ensure there is no default_user (ubuntu)
-#      swap: { filename: /swap.img, size: auto, maxsize: 4G }     # Add new swap file
-#      mounts: [ [ swap, null ] ]                                 # Delete preexisting swap file
+      swap: { filename: /swap.img, size: auto, maxsize: 4G }  # Add new swap file
+#      system_info: { default_user: ~ }                        # Ensure there is no default_user (ubuntu)
+#      mounts: [ [ swap, null ] ]                              # Delete preexisting swap file

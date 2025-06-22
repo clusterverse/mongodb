@@ -25,10 +25,9 @@
     file: binary-config.yml
   when: "'mongodb-org-server' not in ansible_facts.packages"
 
-- name: mongodb | configure inter-node tls (if Mongo not already installed)
+- name: mongodb | configure inter-node tls
   include_tasks:
     file: tls-config.yml
-  when: "'mongodb-org-server' not in ansible_facts.packages"
 
 - name: mongodb | flush handlers
   meta: flush_handlers

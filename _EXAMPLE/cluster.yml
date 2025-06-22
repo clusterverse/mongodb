@@ -4,15 +4,16 @@
   hosts: localhost
   gather_facts: false
   tasks:
-    - { name: "Get dependent roles via ansible-galaxy", local_action: "command ansible-galaxy role install -r requirements.yml", tags: ["always"] }
-
-    - assert: { that: "['dseeley.tasks_serial', 'dseeley.ansible_vault_pipe'] is subset(galaxy_collections.keys())", success_msg: "clusterverse collections dependencies are met", fail_msg: "Please ensure the clusterverse collections are installed: ansible-galaxy install -r requirements.yml)" }
+    - name: clusterverse | collection dependency check
+      assert: { that: "['clusterverse.clusterverse', 'dseeley.tasks_serial', 'dseeley.ansible_vault_pipe'] is subset(galaxy_collections.keys())", fail_msg: "Please ensure the required collections are installed: ansible-galaxy install -r requirements.yml)" }
       vars: { galaxy_collections: "{{lookup('pipe', 'ansible-galaxy collection list --format=json', errors='ignore') | from_json | json_query('*') | combine }}" }
       tags: ["always"]
 
-    - { include_role: { name: "clusterverse/clean", apply: { tags: ["clusterverse_clean"]} }, tags: ["clusterverse_clean"], when: "clean is defined" }
-    - { include_role: { name: "clusterverse/create", apply: { tags: ["clusterverse_create"]} }, tags: ["clusterverse_create"] }
-    - { include_role: { name: "clusterverse/dynamic_inventory", apply: { tags: ["always"]} }, tags: ["always"] }
+    - { include_role: { name: "clusterverse.clusterverse.clean", apply: { tags: ["clusterverse_clean"]} }, tags: ["clusterverse_clean"], when: "clean is defined" }
+    - { include_role: { name: "clusterverse.clusterverse.create", apply: { tags: ["clusterverse_create"]} }, tags: ["clusterverse_create"] }
+    - { include_role: { name: "clusterverse.clusterverse.dynamic_inventory", apply: { tags: ["always"]} }, tags: ["always"] }
+    - { name: "clusterverse | Copy ansible_ssh_private_key_file", local_action: "copy content={{cluster_vars[buildenv].ssh_connection_cfg.host.ansible_ssh_private_key_file}} dest='id_rsa_ansible_ssh_private_key_file' mode='0600'", when: "cluster_vars[buildenv].ssh_connection_cfg.host.ansible_ssh_private_key_file is defined", no_log: true, tags: ["always"] }
+    - { name: "clusterverse | Copy bastion sshkey", local_action: "copy content={{cluster_vars[buildenv].ssh_connection_cfg.bastion.ssh_priv_key}} dest='id_rsa_bastion' mode='0600'", when: "cluster_vars[buildenv].ssh_connection_cfg.bastion.ssh_priv_key is defined", no_log: true, tags: ["always"] }
 
 - name: clusterverse | Install Ansible-supported python version on old (xenial (16), bionic (18)) machines
   hosts: all:!not_target_hosts
@@ -22,15 +23,14 @@
     - name: "Install python 3.9 from source.  WARNING: This is not the native Python for this OS - things written for Python may not work!"
       raw: |-
         set -euxo pipefail
-        sudo sh -c 'echo "Acquire::AllowInsecureRepositories \"true\";\nAcquire::AllowDowngradeToInsecureRepositories \"true\";\nAcquire::Check-Valid-Until \"false\";\nAPT::Get::AllowUnauthenticated \"true\";" > /etc/apt/apt.conf'
         while fuser /var/lib/apt/lists/lock -v 2>&1; do sleep 5; done;
         while fuser /var/lib/dpkg/lock -v 2>&1; do sleep 5; done;
         while fuser /var/lib/dpkg/lock-frontend -v 2>&1; do sleep 5; done;
         sudo apt update
         sudo apt install -y build-essential zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev wget libapt-pkg-dev
-        wget https://www.python.org/ftp/python/3.9.21/Python-3.9.21.tgz --output-document=Python-3.9.21.tgz
-        tar xzf Python-3.9.21.tgz
-        cd Python-3.9.21/
+        wget https://www.python.org/ftp/python/3.9.24/Python-3.9.24.tgz --output-document=Python-3.9.24.tgz
+        tar xzf Python-3.9.24.tgz
+        cd Python-3.9.24/
         sudo ./configure
         sudo make altinstall
         sudo ln -sf /usr/local/bin/python3.9 /usr/bin/python3 
@@ -47,7 +47,7 @@
       delay: 30
       vars:
         ansible_ssh_retries: 10
-      when: hostvars['localhost']['cluster_vars']['image'] | regex_search('xenial|bionic') | bool
+      when: hostvars['localhost']['cluster_vars']['image'] | regex_search('16[\._]?04|xenial|18[\._]?04|bionic') is truthy
 
 
 - name: clusterverse | Configure the cluster
@@ -55,15 +55,15 @@
   gather_facts: false
   tasks:
     - { wait_for_connection: "", timeout: 300, tags: ["always"] }
-    - { include_role: { name: "clusterverse/config", apply: { tags: ["clusterverse_config"]} }, tags: ["clusterverse_config"] }
+    - { include_role: { name: "clusterverse.clusterverse.config", apply: { tags: ["clusterverse_config"]} }, tags: ["clusterverse_config"] }
 
 
 ###### mongodb roles
 - name: mongodb | load clusterverse deps if not included already
   hosts: all
   tasks:
-    - { include_role: { name: "clusterverse/_dependencies", apply: { tags: ["always"] } }, tags: ["always"], when: "'clusterverse_config' not in ansible_run_tags" }      # If we --skip-tags=clusterverse_config, this will ensure the variables from /cluster_defs are loaded.
-    - { include_role: { name: "clusterverse/cluster_hosts", apply: { tags: ["always"] } }, tags: ["always"], when: "'clusterverse_create' not in ansible_run_tags" }      # If we --skip-tags=clusterverse_create, this will ensure cluster_suffix is defined.
+    - { include_role: { name: "clusterverse.clusterverse._dependencies", apply: { tags: ["always"] } }, tags: ["always"], when: "'clusterverse_config' not in ansible_run_tags" }      # If we --skip-tags=clusterverse_config, this will ensure the variables from /cluster_defs are loaded.
+    - { include_role: { name: "clusterverse.clusterverse.cluster_hosts", apply: { tags: ["always"] } }, tags: ["always"], when: "'clusterverse_create' not in ansible_run_tags" }      # If we --skip-tags=clusterverse_create, this will ensure cluster_suffix is defined.
 
 - name: mongodb | mongodb
   hosts: mongod
@@ -75,4 +75,4 @@
 
 - name: clusterverse | Perform cluster readiness operations
   hosts: localhost
-  tasks: [ { include_role: { name: "clusterverse/readiness", apply: { tags: ["clusterverse_readiness"]} }, tags: ["clusterverse_readiness"] } ]
+  tasks: [ { include_role: { name: "clusterverse.clusterverse.readiness", apply: { tags: ["clusterverse_readiness"]} }, tags: ["clusterverse_readiness"] } ]

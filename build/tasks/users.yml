@@ -17,8 +17,25 @@
     r__mongodb_shell__status__before_createUser | json_query('transformed_output.members[?health==`0` || !(contains(`PRIMARY,SECONDARY,ARBITER` stateStr))]') | length==0 and
     r__mongodb_shell__status__before_createUser | json_query('transformed_output.members[?stateStr==`PRIMARY`]') | length==1 
 
-- name: mongodb-users | set user passwords
+- name: mongodb-users | debug r__mongodb_shell__status__before_createUser
+  debug: msg="{{ r__mongodb_shell__status__before_createUser }}"
+
+- name: mongodb-users | set users & passwords
   block:
+    - name: mongodb-users | Wait until node is PRIMARY (db.isMaster().ismaster == true)
+      community.mongodb.mongodb_shell:
+        login_user: "admin"
+        login_password: "{{ mongodb.admin_password }}"
+        mongo_cmd: auto
+        debug: true
+        stringify: true
+        eval: "db.isMaster()"
+      register: r__mongodb_shell__isMaster
+      until: r__mongodb_shell__isMaster.transformed_output.ismaster | default(false)
+      retries: 10
+      delay: 3
+      changed_when: false
+
     - name: mongodb-users | set user passwords (MongoDB 3.4 does not support community.mongodb.mongodb_user)
       community.mongodb.mongodb_shell:
         login_user: "admin"
@@ -27,30 +44,62 @@
         debug: true
         stringify: false
         eval: |-
-          const pw_db = db.getSiblingDB("{{item.pw_database}}");
-          const user = pw_db.getUser("{{item.name}}");
+          const configUsers = {{ mongodb.users | to_json }};
           
-          if (user) {
-            pw_db.updateUser("{{item.name}}", {
-              pwd: "{{item.password}}",
-              roles: {{item.roles}}
-            });
-            print(`User {{item.name}} updated.`);
-          } else {
-            pw_db.createUser({
-              user: "{{item.name}}",
-              pwd: "{{item.password}}",
-              roles: {{item.roles}}
-            });
-            print(`User {{item.name}} created.`);
-          }
-      no_log: true
-      delegate_to: "{{ r__mongodb_shell__status__before_createUser__primary_host | default('_dummy') }}"
-      when: r__mongodb_shell__status__before_createUser__primary_host is truthy
-      register: r__users_created
-      with_items: "{{ mongodb.users }}"
-      vars:
-        r__mongodb_shell__status__before_createUser__primary_host: "{% if cluster_vars.dns_user_domain is falsy %}{{ ansible_play_hosts | map('extract', hostvars) | selectattr('ansible_host', 'defined') | selectattr('ansible_host', 'equalto', ((r__mongodb_shell__status__before_createUser | json_query('transformed_output.members[?stateStr==`PRIMARY`].name'))[0]).split(':')[0] ) | map(attribute='inventory_hostname') | first }}{% else %}{{ ((r__mongodb_shell__status__before_createUser | json_query('transformed_output.members[?stateStr==`PRIMARY`].name'))[0]).split('.')[0] }}{% endif %}"
+          // We shouldn't remove 'keep' users
+          var keep = new Set(["admin.admin", "_redeploy_test._redeploy_test"]);          
 
-#    - name: mongodb-users | debug r__users_created    NOTE - this is commented out because it outputs the password in plain text
-#      debug: { msg: "{{ r__users_created }}" }
+          // Add all the configured users to the keep set
+          configUsers.forEach(function(u) { keep.add(u.pw_database + "." + u.name); });
+
+          const dbsResult = db.adminCommand({listDatabases: 1 });
+          if (!dbsResult.ok) {
+            print('Failed to list databases:', tojson(dbsResult));
+            throw new Error('Cannot list databases');
+          }
+          
+          var dbs = db.adminCommand({listDatabases: 1 }).databases;
+          dbs.forEach(function(d) {
+            var targetDB = db.getSiblingDB(d.name);
+            var dbUserInfo = targetDB.runCommand({ usersInfo: 1 });
+          
+            dbUserInfo.users.forEach(function(u) {
+              var uname = u.user;
+              var key = d.name + "." + uname;
+              if (!keep.has(key)) {
+                print("Deleting user " + uname + " from " + d.name);
+                targetDB.dropUser(uname);
+              } else {
+                print("Skipping user " + uname + " from " + d.name);
+              }
+            });
+          });
+          
+          // Users to create/update
+          configUsers.forEach(u => {
+            const pw_db = db.getSiblingDB(u.pw_database);
+            const user = pw_db.getUser(u.name);
+            if (user) {
+              pw_db.updateUser(u.name, {
+                pwd: u.password,
+                roles: u.roles
+              });
+              print(`User ${u.name} updated.`);
+            } else {
+              pw_db.createUser({
+                user: u.name,
+                pwd: u.password,
+                roles: u.roles
+              });
+              print(`User ${u.name} created.`);
+            }
+          });
+      register: r__users_created
+      no_log: true
+  delegate_to: "{{ r__mongodb_shell__status__before_createUser__primary_host | default('_dummy') }}"
+  when: r__mongodb_shell__status__before_createUser__primary_host is truthy
+  vars:
+    r__mongodb_shell__status__before_createUser__primary_host: "{% if cluster_vars.dns_user_domain is falsy %}{{ ansible_play_hosts | map('extract', hostvars) | selectattr('ansible_host', 'defined') | selectattr('ansible_host', 'equalto', ((r__mongodb_shell__status__before_createUser | json_query('transformed_output.members[?stateStr==`PRIMARY`].name'))[0]).split(':')[0] ) | map(attribute='inventory_hostname') | first }}{% else %}{{ ((r__mongodb_shell__status__before_createUser | json_query('transformed_output.members[?stateStr==`PRIMARY`].name'))[0]).split('.')[0] }}{% endif %}"
+
+#- name: mongodb-users | debug r__users_created    NOTE - this is commented out because it outputs the password in plain text
+#  debug: { msg: "{{ r__users_created }}" }

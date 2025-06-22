@@ -52,13 +52,19 @@
 
         - name: backup_restore | Get the backup from S3  (NOTE - amazon.aws.s3_object module needs boto3 and botocore installed on the target host; it's not possible to get a valid version on old Ubuntu, so using aws cli)
           become: true
-          ansible.builtin.shell: |
-            AWS_ACCESS_KEY_ID={{ {{cluster_vars[buildenv].aws_access_key }} \
-            AWS_SECRET_ACCESS_KEY={{ {{cluster_vars[buildenv].aws_secret_key }} \
-            aws s3 cp s3://{{s3_backup_root}}/{{ ansible_date_time.date }}.gz {{remote_backup_path}} --region eu-west-1
-            chown {{mongodb.sysuser}}:{{mongodb.sysgroup}} {{remote_backup_path}}
-          args:
+          ansible.builtin.command:
+            cmd: aws s3 cp s3://{{s3_backup_root}}/{{ ansible_date_time.date }}.gz {{remote_backup_path}} --region eu-west-1
             creates: "{{remote_backup_path}}"
+          environment:
+            AWS_ACCESS_KEY_ID: "{{ cluster_vars[buildenv].aws_access_key if not lookup('env', 'AWS_PROFILE') else (aws_sso_creds_env.stdout | from_json).AccessKeyId }}"
+            AWS_SECRET_ACCESS_KEY: "{{ cluster_vars[buildenv].aws_secret_key if not lookup('env', 'AWS_PROFILE') else (aws_sso_creds_env.stdout | from_json).SecretAccessKey }}"
+
+        - name: backup_restore | Set file ownership
+          become: true
+          ansible.builtin.file:
+            path: "{{ remote_backup_path }}"
+            owner: "{{ mongodb.sysuser }}"
+            group: "{{ mongodb.sysgroup }}"
 
         - name: backup_restore | disable remote access via iptables
           block:

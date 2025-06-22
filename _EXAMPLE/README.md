@@ -18,6 +18,9 @@ This project can operate in isolation, but is designed to operate using [cluster
 + `backup_restore.yml` is used to restore a backup of the cluster from S3
 
 
+#### Options
++ `mongo_version`: The version of MongoDB to install/redeploy, e.g. `3.4.24`
+
 ### Invocation
 To create a cluster:
 + `ansible-playbook cluster.yml -e cloud_type=aws -e region=eu-west-1 -e buildenv=dev`

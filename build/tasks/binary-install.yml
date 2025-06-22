@@ -3,7 +3,7 @@
 - name: binary-install | Install required packages and libraries
   become: true
   apt:
-    name: ['openssl', 'liblzma5', 'gnupg', 'python3-pip', 'unzip']
+    name: ['openssl', 'liblzma5', 'gnupg', 'python3-pip', 'unzip', 'numactl']
     update_cache: true
 
 - name: binary-install | Install pymongo and cryptography via pip (apt version is too old).

@@ -1,6 +1,6 @@
 ---
 
-- name: host-config | disable transparent huge pages
+- name: host-config | disable transparent huge pages (for Mongo<8 only.  THP is supported in Mongo>=8)
   become: true
   copy:
     content: |
@@ -19,6 +19,7 @@
     dest: "/etc/systemd/system/thp-disable.service"
     force: true
   notify: restart thp-disable.service
+  when: mongodb.version.split('.')[0:2] | join('.') is version('8.0', '<' )
 
 - name: host-config | set basic sysctls
   become: true
@@ -29,7 +30,7 @@
     sysctl_set: true
     state: present
   with_items:
-    - {name: vm.swappiness,         value: 0}
+    - {name: vm.swappiness,         value: "{{ 1 if 'swap:' in cluster_vars['user_data'] else 0 }}"}
     - {name: vm.zone_reclaim_mode,  value: 0}
     - {name: vm.dirty_ratio,        value: 15}
     - {name: vm.dirty_background_ratio,  value: 5}
