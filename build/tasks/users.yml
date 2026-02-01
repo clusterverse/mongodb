@@ -99,7 +99,7 @@
   delegate_to: "{{ r__mongodb_shell__status__before_createUser__primary_host | default('_dummy') }}"
   when: r__mongodb_shell__status__before_createUser__primary_host is truthy
   vars:
-    r__mongodb_shell__status__before_createUser__primary_host: "{% if cluster_vars.dns_user_domain is falsy %}{{ ansible_play_hosts | map('extract', hostvars) | selectattr('ansible_host', 'defined') | selectattr('ansible_host', 'equalto', ((r__mongodb_shell__status__before_createUser | json_query('transformed_output.members[?stateStr==`PRIMARY`].name'))[0]).split(':')[0] ) | map(attribute='inventory_hostname') | first }}{% else %}{{ ((r__mongodb_shell__status__before_createUser | json_query('transformed_output.members[?stateStr==`PRIMARY`].name'))[0]).split('.')[0] }}{% endif %}"
+    r__mongodb_shell__status__before_createUser__primary_host: "{% if cluster_vars.dns_server is falsy or cluster_vars.dns_nameserver_zone is falsy %}{{ ansible_play_hosts | map('extract', hostvars) | selectattr('ansible_host', 'defined') | selectattr('ansible_host', 'equalto', ((r__mongodb_shell__status__before_createUser | json_query('transformed_output.members[?stateStr==`PRIMARY`].name'))[0]).split(':')[0] ) | map(attribute='inventory_hostname') | first }}{% else %}{{ ((r__mongodb_shell__status__before_createUser | json_query('transformed_output.members[?stateStr==`PRIMARY`].name'))[0]).split('.')[0] }}{% endif %}"
 
 #- name: mongodb-users | debug r__users_created    NOTE - this is commented out because it outputs the password in plain text
 #  debug: { msg: "{{ r__users_created }}" }

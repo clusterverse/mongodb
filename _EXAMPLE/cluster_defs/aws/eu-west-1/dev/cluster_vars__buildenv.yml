@@ -9,7 +9,7 @@ cluster_vars:
     ssh_connection_cfg:
       host: &host_ssh_connection_cfg
         ansible_user: "ansible"
-        ansible_ssh_private_key_file: "{{ lookup('env', 'ansible_ssh_private_key_file') | default ('') }}"    # NOTE: This can either be sourced from environment (ansible_ssh_private_key_file), or defined inline here (perhaps vaulted).  Alternatively this can be omitted and --private-key=<privkeyfile> (which creates the ansible variable 'ansible_ssh_private_key_file') can be used on the command line.
+        ansible_ssh_private_key_contents: "{{ lookup('env', 'ANSIBLE_SSH_PRIVATE_KEY_CONTENTS') | default ('') }}"    # NOTE: This can either be sourced from environment (ANSIBLE_SSH_PRIVATE_KEY_CONTENTS), or defined inline here (perhaps vaulted).  Alternatively this can be omitted and --private-key=<privkeyfile> (which creates the ansible variable 'ansible_ssh_private_key_file') can be used on the command line.
 #      bastion:
 #        ssh_args (proxy_only): "{{ ((' -o ProxyCommand=\"nc -X connect -x ' ~ (lookup('env', 'HTTP_PROXY') | regex_replace('^https?://', '')) ~ ' %h %p\"') if lookup('env', 'HTTP_PROXY') != '' else '') }}"
 #        ssh_args (bastion_only): '-o ProxyCommand="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ./id_rsa_bastion -W %h:%p -q user@bastion.example.com"'
@@ -24,10 +24,10 @@ cluster_vars:
       mongod:
         auto_volumes:
           - {device_name: "/dev/sda1", mountpoint: "/", fstype: "ext4", volume_type: "gp3", volume_size: 8, encrypted: True, delete_on_termination: true}
-          - {device_name: "/dev/sdf", mountpoint: "{{ mongodb.mongod_conf.storage.dbPath }}", fstype: "xfs", volume_type: "gp3", volume_size: 2, encrypted: True, "delete_on_termination": true}
+          - {device_name: "/dev/sdf", mountpoint: "{{ mongodb.mongod_conf.storage.dbPath }}", fstype: "xfs", opts: "noatime", volume_type: "gp3", volume_size: 2, encrypted: True, "delete_on_termination": true}
           - {device_name: "/dev/sdg", mountpoint: "{{ mongodb.mongod_conf.systemLog.path | dirname }}", fstype: "ext4", volume_type: "gp3", volume_size: 1, encrypted: True, "delete_on_termination": true}
         flavor: m7a.medium
         version: "{{mongodb.version | regex_replace('\\.', '_') | default('')}}"
-        vms_by_az: { a: 1, b: 0, c: 0 }
+        vms_by_az: { a: 1, b: 1, c: 1 }
 
 _host_ssh_connection_cfg: { <<: *host_ssh_connection_cfg }

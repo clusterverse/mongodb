@@ -2,8 +2,10 @@
 
 This Ansible role is used to provision and manage mongodb cluster.
 
-This project can operate in isolation, but is designed to operate using [clusterverse](https://github.com/dseeley/clusterverse) to manage the base infrastructure.  Please see the [README.md](https://github.com/dseeley/clusterverse/blob/master/README.md) there for instructions on deployment.
+This project can operate in isolation, but is designed to operate using [clusterverse](https://github.com/clusterverse/clusterverse) to manage the base infrastructure.  Please see the [README.md](https://github.com/clusterverse/clusterverse/blob/master/README.md) there for instructions on deployment.
 
+## Compatibility
+This role works with MongoDB 3.4 and above, including redeploying from one version to the next.  Doing so requires some compromises with the Ansible libraries: Most of `community.mongodb.*` (except `mongodb_shell`) are designed for MongoDB 4.2 and above, and do not work with lower versions.  Where possible, both the `.shell` and modern library are available, with a `when:` condition to select based on the version of MongoDB being deployed.  **_NOTE:_**  because a redeploy from `4.0` to `4.2` will be running on both `4.0` and `4.2` clusters, we must use the `shell` library when configuring clusters of `>4.2`, not `>=4.2`.
 
 ## EXAMPLE:
 
@@ -19,7 +21,7 @@ This project can operate in isolation, but is designed to operate using [cluster
 
 
 #### Options
-+ `mongo_version`: The version of MongoDB to install/redeploy, e.g. `3.4.24`
++ `mongo_version`: The version of MongoDB to install/redeploy, e.g. `8.0.18`
 
 ### Invocation
 To create a cluster:
@@ -27,6 +29,9 @@ To create a cluster:
 
 To redeploy a cluster:
 + `ansible-playbook redeploy.yml -e cloud_type=aws -e region=eu-west-1 -e buildenv=dev -e canary=none`
++ or
++ `ansible-playbook redeploy.yml -e cloud_type=aws -e region=eu-west-1 -e buildenv=dev -e canary=start`
++ `ansible-playbook redeploy.yml -e cloud_type=aws -e region=eu-west-1 -e buildenv=dev -e canary=finish`
 
 To delete a cluster:
 + `ansible-playbook cluster.yml -e cloud_type=aws -e region=eu-west-1 -e buildenv=dev --tags=clusterverse_clean -e clean=_all_`

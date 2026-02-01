@@ -30,7 +30,7 @@
     sysctl_set: true
     state: present
   with_items:
-    - {name: vm.swappiness,         value: "{{ 1 if 'swap:' in cluster_vars['user_data'] else 0 }}"}
+    - {name: vm.swappiness,         value: "{{ 1 if (cluster_vars.cloud_type == 'aws' and 'swap:' in cluster_vars['user_data']) or (cluster_vars.cloud_type == 'libvirt' and 'swap' in cluster_vars['libvirt']['cloudinit_userdata']) else 0 }}"}
     - {name: vm.zone_reclaim_mode,  value: 0}
     - {name: vm.dirty_ratio,        value: 15}
     - {name: vm.dirty_background_ratio,  value: 5}

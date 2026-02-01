@@ -39,19 +39,19 @@
         - name: binary-install | Add Repository
           become: true
           ansible.builtin.apt_repository:
-            repo: "deb [arch={{ 'amd64' if ansible_architecture == 'x86_64' else 'arm64' if ansible_architecture == 'aarch64' else ansible_architecture }} trusted=yes] https://repo.mongodb.org/apt/{{ansible_distribution|lower}} {{ansible_distribution_release}}/mongodb-org/{{mongodb.version | regex_replace('^([0-9])\\.([0-9]*).*', '\\1.\\2')}} multiverse"
+            repo: "deb [arch={{ 'amd64' if ansible_facts['architecture'] == 'x86_64' else 'arm64' if ansible_facts['architecture'] == 'aarch64' else ansible_facts['architecture'] }} trusted=yes] https://repo.mongodb.org/apt/{{ansible_facts['distribution']|lower}} {{ansible_facts['distribution_release']}}/mongodb-org/{{mongodb.version | regex_replace('^([0-9])\\.([0-9]*).*', '\\1.\\2')}} multiverse"
             state: present
-      when: mongodb.version.split('.')[0:2] | join('.') is version('4.4', '<' )
+      when: ansible_facts['distribution_version'] is version('22.04', '<' )
 
     - name: binary-install | Add Repository and key (using new method, supported in > Ubuntu20.04, required by Ubuntu24.04.1)
       become: true
       ansible.builtin.deb822_repository:
         name: mongodb
         types: [deb]
-        architectures: "{{ 'amd64' if ansible_architecture == 'x86_64' else 'arm64' if ansible_architecture == 'aarch64' else ansible_architecture }}"
-        uris: "https://repo.mongodb.org/apt/{{ansible_distribution|lower}}"
+        architectures: "{{ 'amd64' if ansible_facts['architecture'] == 'x86_64' else 'arm64' if ansible_facts['architecture'] == 'aarch64' else ansible_facts['architecture'] }}"
+        uris: "https://repo.mongodb.org/apt/{{ansible_facts['distribution']|lower}}"
         suites:
-          - "{{ansible_distribution_release}}/mongodb-org/{{mongodb.version | regex_replace('^([0-9])\\.([0-9]*).*', '\\1.\\2')}}"
+          - "{{ansible_facts['distribution_release']}}/mongodb-org/{{mongodb.version | regex_replace('^([0-9])\\.([0-9]*).*', '\\1.\\2')}}"
         components: [multiverse]
         signed_by: "https://www.mongodb.org/static/pgp/server-{{mongodb.version | regex_replace('^([0-9])\\.([0-9]*).*', '\\1.\\2')}}.asc"
         allow_insecure: true
@@ -60,8 +60,7 @@
         trusted: true
         state: present
         enabled: true
-      when: mongodb.version.split('.')[0:2] | join('.') is version('4.4', '>=' )
-  when: ansible_os_family == 'Debian'
+      when: ansible_facts['distribution_version'] is version('22.04', '>=' )
 
 - name: binary-install | Install mongodb-org binaries
   become: true

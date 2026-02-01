@@ -4,10 +4,10 @@
   hosts: localhost
   gather_facts: false
   tasks:
-    - { name: "Get dependent roles via ansible-galaxy", local_action: "command ansible-galaxy role install -fr requirements.yml", tags: ["always"] }
-    - { include_role: { name: "clusterverse/dynamic_inventory", apply: { tags: ["clusterverse_dynamic_inventory"]} }, tags: ["clusterverse_dynamic_inventory"] }
-    - { name: "clusterverse | Copy ansible_ssh_private_key_file", local_action: "copy content={{cluster_vars[buildenv].ssh_connection_cfg.host.ansible_ssh_private_key_file}} dest='id_rsa_ansible_ssh_private_key_file' mode='0600'", when: "cluster_vars[buildenv].ssh_connection_cfg.host.ansible_ssh_private_key_file is defined", no_log: true, tags: ["always"] }
-    - { name: "clusterverse | Copy bastion sshkey", local_action: "copy content={{cluster_vars[buildenv].ssh_connection_cfg.bastion.ssh_priv_key}} dest='id_rsa_bastion' mode='0600'", when: "cluster_vars[buildenv].ssh_connection_cfg.bastion.ssh_priv_key is defined", no_log: true, tags: ["always"] }
+    - assert: { that: "['clusterverse.clusterverse', 'dseeley.tasks_serial', 'dseeley.ansible_vault_pipe'] is subset(galaxy_collections.keys())", success_msg: "clusterverse collections dependencies are met", fail_msg: "Please ensure the clusterverse collections are installed: ansible-galaxy install -r requirements.yml)" }
+      vars: { galaxy_collections: "{{lookup('pipe', 'ansible-galaxy collection list --format=json', errors='ignore') | from_json | json_query('*') | combine }}" }
+
+    - { include_role: { name: "clusterverse.clusterverse.dynamic_inventory", apply: { tags: ["always"]} }, tags: ["always"] }
 
     - name: backup_restore | Verify the cluster's health *before* restore
       include_role: { name: "mongodb/verify" }
@@ -17,6 +17,13 @@
   hosts: mongod
   tasks:
     - { include_role: { name: "clusterverse/_dependencies", apply: { tags: ["always"] } }, tags: ["always"], when: "'clusterverse_config' not in ansible_run_tags" }      # If we --skip-tags=clusterverse_config, this will ensure the variables from /cluster_defs are loaded.
+
+    - name: backup_restore | Get AWS SSO credentials as environment variables when AWS_PROFILE is set
+      ansible.builtin.shell: |
+        aws configure export-credentials --profile {{ lookup('env', 'AWS_PROFILE') }}
+      delegate_to: localhost
+      run_once: true
+      register: aws_sso_creds_env
 
     - name: backup_restore | Get replicaset status
       community.mongodb.mongodb_shell:
@@ -153,7 +160,7 @@
       vars:
         remote_backup_path: "{{mongodb.mongod_conf.storage.dbPath}}/__backup_{{ ansible_date_time.date }}.gz"
         primary_host: "{{ ((r__mongodb_shell__status | default([]) | json_query(\"transformed_output.members[?stateStr==`PRIMARY`].name\"))[0]).split('.')[0] }}"
-        all_mongodb_hosts: "{{ groups['mongod'] | map('extract', hostvars) | json_query(\"[].{hostname: hostname, ip: ansible_default_ipv4.address}\") + [{'hostname': 'localhost', 'ip': '127.0.0.1'}] }}"
+        all_mongodb_hosts: "{{ groups['mongod'] | map('extract', hostvars) | json_query(\"[].{hostname: hostname, ip: ansible_facts['default_ipv4']['address']}\") + [{'hostname': 'localhost', 'ip': '127.0.0.1'}] }}"
 
     - name: backup_restore | update users
       include_role:

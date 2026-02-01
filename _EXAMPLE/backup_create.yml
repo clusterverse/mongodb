@@ -4,10 +4,10 @@
   hosts: localhost
   gather_facts: false
   tasks:
-    - { name: "Get dependent roles via ansible-galaxy", local_action: "command ansible-galaxy role install -fr requirements.yml", tags: ["always"] }
-    - { include_role: { name: "clusterverse/dynamic_inventory", apply: { tags: ["clusterverse_dynamic_inventory"]} }, tags: ["clusterverse_dynamic_inventory"] }
-    - { name: "clusterverse | Copy ansible_ssh_private_key_file", local_action: "copy content={{cluster_vars[buildenv].ssh_connection_cfg.host.ansible_ssh_private_key_file}} dest='id_rsa_ansible_ssh_private_key_file' mode='0600'", when: "cluster_vars[buildenv].ssh_connection_cfg.host.ansible_ssh_private_key_file is defined", no_log: true, tags: ["always"] }
-    - { name: "clusterverse | Copy bastion sshkey", local_action: "copy content={{cluster_vars[buildenv].ssh_connection_cfg.bastion.ssh_priv_key}} dest='id_rsa_bastion' mode='0600'", when: "cluster_vars[buildenv].ssh_connection_cfg.bastion.ssh_priv_key is defined", no_log: true, tags: ["always"] }
+    - assert: { that: "['clusterverse.clusterverse', 'dseeley.tasks_serial', 'dseeley.ansible_vault_pipe'] is subset(galaxy_collections.keys())", success_msg: "clusterverse collections dependencies are met", fail_msg: "Please ensure the clusterverse collections are installed: ansible-galaxy install -r requirements.yml)" }
+      vars: { galaxy_collections: "{{lookup('pipe', 'ansible-galaxy collection list --format=json', errors='ignore') | from_json | json_query('*') | combine }}" }
+
+    - { include_role: { name: "clusterverse.clusterverse.dynamic_inventory", apply: { tags: ["always"]} }, tags: ["always"] }
 
     - name: backup_create | Verify the cluster's health *before* backup
       include_role: { name: "mongodb/verify" }

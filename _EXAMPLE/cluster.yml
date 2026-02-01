@@ -4,18 +4,15 @@
   hosts: localhost
   gather_facts: false
   tasks:
-    - name: clusterverse | collection dependency check
-      assert: { that: "['clusterverse.clusterverse', 'dseeley.tasks_serial', 'dseeley.ansible_vault_pipe'] is subset(galaxy_collections.keys())", fail_msg: "Please ensure the required collections are installed: ansible-galaxy install -r requirements.yml)" }
+    - assert: { that: "['clusterverse.clusterverse', 'dseeley.tasks_serial', 'dseeley.ansible_vault_pipe'] is subset(galaxy_collections.keys())", success_msg: "clusterverse collections dependencies are met", fail_msg: "Please ensure the clusterverse collections are installed: ansible-galaxy install -r requirements.yml)" }
       vars: { galaxy_collections: "{{lookup('pipe', 'ansible-galaxy collection list --format=json', errors='ignore') | from_json | json_query('*') | combine }}" }
       tags: ["always"]
 
     - { include_role: { name: "clusterverse.clusterverse.clean", apply: { tags: ["clusterverse_clean"]} }, tags: ["clusterverse_clean"], when: "clean is defined" }
     - { include_role: { name: "clusterverse.clusterverse.create", apply: { tags: ["clusterverse_create"]} }, tags: ["clusterverse_create"] }
     - { include_role: { name: "clusterverse.clusterverse.dynamic_inventory", apply: { tags: ["always"]} }, tags: ["always"] }
-    - { name: "clusterverse | Copy ansible_ssh_private_key_file", local_action: "copy content={{cluster_vars[buildenv].ssh_connection_cfg.host.ansible_ssh_private_key_file}} dest='id_rsa_ansible_ssh_private_key_file' mode='0600'", when: "cluster_vars[buildenv].ssh_connection_cfg.host.ansible_ssh_private_key_file is defined", no_log: true, tags: ["always"] }
-    - { name: "clusterverse | Copy bastion sshkey", local_action: "copy content={{cluster_vars[buildenv].ssh_connection_cfg.bastion.ssh_priv_key}} dest='id_rsa_bastion' mode='0600'", when: "cluster_vars[buildenv].ssh_connection_cfg.bastion.ssh_priv_key is defined", no_log: true, tags: ["always"] }
 
-- name: clusterverse | Install Ansible-supported python version on old (xenial (16), bionic (18)) machines
+- name: clusterverse | Install Ansible-supported python version on old (xenial (16), bionic (18), focal, (20)) machines.  See compatibility matrix at https://docs.ansible.com/projects/ansible/latest/reference_appendices/release_and_maintenance.html#ansible-core-support-matrix
   hosts: all:!not_target_hosts
   gather_facts: false
   tags: ["clusterverse_create"]
@@ -27,10 +24,10 @@
         while fuser /var/lib/dpkg/lock -v 2>&1; do sleep 5; done;
         while fuser /var/lib/dpkg/lock-frontend -v 2>&1; do sleep 5; done;
         sudo apt update
-        sudo apt install -y build-essential zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev wget libapt-pkg-dev
-        wget https://www.python.org/ftp/python/3.9.24/Python-3.9.24.tgz --output-document=Python-3.9.24.tgz
-        tar xzf Python-3.9.24.tgz
-        cd Python-3.9.24/
+        sudo apt install -y build-essential zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev wget libapt-pkg-dev xfsprogs
+        wget https://www.python.org/ftp/python/3.9.25/Python-3.9.25.tgz --output-document=Python-3.9.25.tgz
+        tar xzf Python-3.9.25.tgz
+        cd Python-3.9.25/
         sudo ./configure
         sudo make altinstall
         sudo ln -sf /usr/local/bin/python3.9 /usr/bin/python3 
@@ -47,7 +44,7 @@
       delay: 30
       vars:
         ansible_ssh_retries: 10
-      when: hostvars['localhost']['cluster_vars']['image'] | regex_search('16[\._]?04|xenial|18[\._]?04|bionic') is truthy
+      when: hostvars['localhost']['cluster_vars']['image'] | regex_search('16[\._]?04|xenial|18[\._]?04|bionic|20[\._]?04|focal') is truthy
 
 
 - name: clusterverse | Configure the cluster

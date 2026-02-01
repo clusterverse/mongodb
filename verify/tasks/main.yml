@@ -16,17 +16,17 @@
 
 - name: verify | assert that there are the same number of members as hosts
   assert:
-    that: "{{ r__mongodb_shell__status | json_query(\"transformed_output.members[]\") | length == (groups['mongod'] | length) }}"
+    that: "r__mongodb_shell__status | json_query(\"transformed_output.members[]\") | length == (groups['mongod'] | length)"
     fail_msg: "There should be the same number of replicaset members as mongodb hosts ({{groups['mongod']}})"
 
 - name: verify | assert that there is only one primary
   assert:
-    that: "{{r__mongodb_shell__status | json_query(\"transformed_output.members[?stateStr==`PRIMARY`]\") | length==1}}"
+    that: "r__mongodb_shell__status | json_query(\"transformed_output.members[?stateStr==`PRIMARY`]\") | length==1"
     fail_msg: "There is not exactly one primary in the replicaset"
 
 - name: verify | assert that All members must are in state of PRIMARY, SECONDARY, or ARBITER
   assert:
-    that: "{{r__mongodb_shell__status | json_query(\"transformed_output.members[?health==`0` || !(contains(`PRIMARY,SECONDARY,ARBITER` stateStr))]\") | length==0 }}"
+    that: "r__mongodb_shell__status | json_query(\"transformed_output.members[?health==`0` || !(contains(`PRIMARY,SECONDARY,ARBITER` stateStr))]\") | length==0"
     fail_msg: "All members must are in state of PRIMARY, SECONDARY, or ARBITER"
 
 

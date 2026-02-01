@@ -61,7 +61,7 @@
               } catch (e) {
                 var status = { ok: 0 };
               }
-              var members = {{ (((hosts_to_keep | default([]) | union([mongod_status_initial_primary_hostname])) | map('extract', hostvars, ['ansible_host'])) if (cluster_vars.dns_user_domain is falsy)  else  hosts_to_keep | default([]) | union([mongod_status_initial_primary_hostname]) | map('regex_replace', '^(.*)$', '\1' + '.' + cluster_vars.dns_user_domain)) | map('regex_replace', '^(.*)$', '\1' + ':' + mongodb.mongod_conf.net.port|string) | sort }};
+              var members = {{ (((hosts_to_keep | default([]) | union([mongod_status_initial_primary_hostname])) | map('extract', hostvars, ['ansible_host'])) if (cluster_vars.dns_server is falsy or cluster_vars.dns_nameserver_zone is falsy)  else  hosts_to_keep | default([]) | union([mongod_status_initial_primary_hostname]) | map('regex_replace', '^(.*)$', '\1' ~ '.' ~ (cluster_vars.dns_subdomain ~ '.' if cluster_vars.dns_subdomain else '') ~ cluster_vars.dns_nameserver_zone)) | map('regex_replace', '^(.*)$', '\1' + ':' ~ mongodb.mongod_conf.net.port|string) | sort }};
 
               function createMemberConfig(members, currentMembers) {
                 var memberConfig = [];
@@ -99,7 +99,7 @@
               }
           delegate_to: "{{ mongod_status_initial_primary_hostname }}"
           register: r__mongodb_replicaset
-          when: mongodb.version.split('.')[0:2] | join('.') is version('4.0', '<=' )    # NOTE: whilst v3.6 is supports mongodb_replicaset, if we're doing a redeploy to v3.6, we'll also be running this on v3.4 nodes.
+          when: mongodb.version.split('.')[0:2] | join('.') is version('4.2', '<=' )    # NOTE: whilst v3.6 is supports mongodb_replicaset, if we're doing a redeploy to v3.6, we'll also be running this on v3.4 nodes.
 
           ## Note: Not supported on MongoDB 3.4
         - name: mongodb/redeploy_predelete | remove hosts_to_remove__non_primary from the replicaset
@@ -107,13 +107,13 @@
             login_user: "admin"
             login_password: "{{mongodb.admin_password}}"
             replica_set: "{{mongodb.mongod_conf.replication.replSetName}}"
-            members: "{{ (((hosts_to_keep | default([]) | union([mongod_status_initial_primary_hostname])) | map('extract', hostvars, ['ansible_host'])) if (cluster_vars.dns_user_domain is falsy)  else  hosts_to_keep | default([]) | union([mongod_status_initial_primary_hostname]) | map('regex_replace', '^(.*)$', '\\1' + '.' + cluster_vars.dns_user_domain)) | map('regex_replace', '^(.*)$', '\\1' + ':' + mongodb.mongod_conf.net.port|string) | sort }}"
+            members: "{{ (((hosts_to_keep | default([]) | union([mongod_status_initial_primary_hostname])) | map('extract', hostvars, ['ansible_host'])) if (cluster_vars.dns_server is falsy or cluster_vars.dns_nameserver_zone is falsy)  else  hosts_to_keep | default([]) | union([mongod_status_initial_primary_hostname]) | map('regex_replace', '^(.*)$', '\\1' ~ '.' ~ (cluster_vars.dns_subdomain ~ '.' if cluster_vars.dns_subdomain else '') ~ cluster_vars.dns_nameserver_zone)) | map('regex_replace', '^(.*)$', '\\1' ~ ':' ~ mongodb.mongod_conf.net.port|string) | sort }}"
             reconfigure: true
             force: "{{'true' if (hosts_to_remove__non_primary | length > 1) else 'false'}}"
             validate: false
           delegate_to: "{{ mongod_status_initial_primary_hostname }}"
           register: r__mongodb_replicaset
-          when: mongodb.version.split('.')[0:2] | join('.') is version('4.0', '>' )    # NOTE: whilst v3.6 is supports mongodb_replicaset, if we're doing a redeploy to v3.6, we'll also be running this on v3.4 nodes.
+          when: mongodb.version.split('.')[0:2] | join('.') is version('4.2', '>' )    # NOTE: whilst v3.6 is supports mongodb_replicaset, if we're doing a redeploy to v3.6, we'll also be running this on v3.4 nodes.
 
         - name: mongodb/redeploy_predelete | debug r__mongodb_replicaset (after remove non-primaries)
           debug: {msg: "{{r__mongodb_replicaset}}"}
@@ -151,7 +151,7 @@
       block:
         - name: mongodb/redeploy_predelete | remove primary from the replicaset if this is a replicaset
           block:
-            - name: mongodb/redeploy_predelete | If we're now removing the primary, then we need to step it down first.  We cannot test for failure here, because it always fails (it drops connection after stepping down) [https://mongodb-user.narkive.com/G1m2XoxR/error-while-trying-to-stepdown-mongodb-replica-set].
+            - name: mongodb/redeploy_predelete | If we're now removing the primary, then we need to step it down first.  We cannot test for failure here (so we ignore), because it always fails (it drops connection after stepping down) [https://mongodb-user.narkive.com/G1m2XoxR/error-while-trying-to-stepdown-mongodb-replica-set].
               community.mongodb.mongodb_shell:
                 login_user: "admin"
                 login_password: "{{mongodb.admin_password}}"
@@ -162,7 +162,7 @@
               register: r__mongodb_stepdown
               ignore_errors: true
               delegate_to: "{{ mongod_status_initial_primary_hostname }}"
-              when: mongodb.version.split('.')[0:2] | join('.') is version('4.0', '<=' )    # NOTE: whilst v3.6 is supports mongodb_replicaset, if we're doing a redeploy to v3.6, we'll also be running this on v3.4 nodes.
+              when: mongodb.version.split('.')[0:2] | join('.') is version('4.2', '<=' )    # NOTE: whilst v3.6 is supports mongodb_replicaset, if we're doing a redeploy to v3.6, we'll also be running this on v3.4 nodes.
 
               ## NOTE: mongodb_stepdown is not valid for MongoDB 3.4, need to use mongodb_shell.
             - name: mongodb/redeploy_predelete | If we're now removing the primary, then we need to step it down first
@@ -174,7 +174,7 @@
               until: r__mongodb_stepdown is success
               retries: 10      # Can't use poll/interval until https://github.com/ansible-collections/community.mongodb/pull/657 is in mainline.  Use retries/until in the meantime.
               delegate_to: "{{ mongod_status_initial_primary_hostname }}"
-              when: mongodb.version.split('.')[0:2] | join('.') is version('4.0', '>' )    # NOTE: whilst v3.6 is supports mongodb_replicaset, if we're doing a redeploy to v3.6, we'll also be running this on v3.4 nodes.
+              when: mongodb.version.split('.')[0:2] | join('.') is version('4.2', '>' )    # NOTE: whilst v3.6 is supports mongodb_replicaset, if we're doing a redeploy to v3.6, we'll also be running this on v3.4 nodes.
 
             - name: mongodb/redeploy_predelete | debug r__mongodb_stepdown (after stepping down primary)
               debug: {msg: "{{r__mongodb_stepdown}}"}
@@ -266,7 +266,7 @@
                       }
                   delegate_to: "{{ mongod_status_new_primary_hostname | default('_dummy') }}"
                   register: r__mongodb_replicaset
-#                  when: mongodb.version.split('.')[0:2] | join('.') is version('4.0', '<=' )    # NOTE: whilst v3.6 is supports mongodb_replicaset, if we're doing a redeploy to v3.6, we'll also be running this on v3.4 nodes.
+#                  when: mongodb.version.split('.')[0:2] | join('.') is version('4.2', '<=' )    # NOTE: whilst v3.6 is supports mongodb_replicaset, if we're doing a redeploy to v3.6, we'll also be running this on v3.4 nodes.
 #
 #                  ## NOTE: Not supported on MongoDB 3.4
 #                - name: mongodb/redeploy_predelete | remove previous primary from the replicaset (must be run on the *new* primary)
@@ -280,7 +280,7 @@
 #                    validate: false
 #                  delegate_to: "{{ mongod_status_new_primary_hostname | default('_dummy') }}"
 #                  register: r__mongodb_replicaset
-#                  when: mongodb.version.split('.')[0:2] | join('.') is version('4.0', '>' )    # NOTE: whilst v3.6 is supports mongodb_replicaset, if we're doing a redeploy to v3.6, we'll also be running this on v3.4 nodes.
+#                  when: mongodb.version.split('.')[0:2] | join('.') is version('4.2', '>' )    # NOTE: whilst v3.6 is supports mongodb_replicaset, if we're doing a redeploy to v3.6, we'll also be running this on v3.4 nodes.
 
                 - name: mongodb/redeploy_predelete | debug r__mongodb_replicaset (after remove primary)
                   debug: {msg: "{{r__mongodb_replicaset}}"}
@@ -323,7 +323,7 @@
       {%- if mongod_status_initial_primary is match('^\\d+\\.\\d+\\.\\d+\\.\\d+') -%}
         {{ ( (groups['all'] | map('extract', hostvars) | selectattr('ansible_host', 'defined') | selectattr('ansible_host', 'in', mongod_status_initial_nodes | map('regex_replace', ':.*$') ) | map(attribute='inventory_hostname')) | difference(hosts_to_remove | default([]) | json_query('[].name') ) | map('extract', hostvars) | map(attribute='ansible_host')  | map('regex_replace', '^(.*)$', '\1' + ':' +  mongodb.mongod_conf.net.port|string) ) | sort }}
       {%- else -%}
-        {{ mongod_status_initial_nodes | difference(hosts_to_remove | default([]) | json_query('[].name') | map('regex_replace', '^(.*)$', '\1' + '.' + cluster_vars.dns_user_domain + ':' +  mongodb.mongod_conf.net.port|string)) | sort }}
+        {{ mongod_status_initial_nodes | difference(hosts_to_remove | default([]) | json_query('[].name') | map('regex_replace', '^(.*)$', '\1' ~ '.' ~ (cluster_vars.dns_subdomain ~ '.' if cluster_vars.dns_subdomain else '') ~ cluster_vars.dns_nameserver_zone ~ ':' ~  mongodb.mongod_conf.net.port|string)) | sort }}
       {%- endif -%}
     hosts_to_keep: "{%- if mongod_status_initial_primary is match('^\\d+\\.\\d+\\.\\d+\\.\\d+') -%}{{ (groups['all'] | map('extract', hostvars) | selectattr('ansible_host', 'defined') | selectattr('ansible_host', 'in', mongodb_nodes_to_keep | map('regex_replace', ':.*$') ) | map(attribute='inventory_hostname')) }}{% else %}{{ mongodb_nodes_to_keep | map('regex_replace', '\\..*$') }}{% endif %}"
   when: hosts_to_remove | length > 0

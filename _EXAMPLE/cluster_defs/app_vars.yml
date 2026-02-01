@@ -16,6 +16,7 @@ compatibility_matrix:
   "4.0":
     ubuntu: "{{_ubuntu1804image}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools', 'mongodb-org-shell']
+    pymongo_version: "3.12.3"
     feature_compatibility_versions: { previous: "3.6.23", next: "4.2" }
   "4.2":
     ubuntu: "{{_ubuntu1804image}}"
@@ -28,22 +29,22 @@ compatibility_matrix:
   "5.0":
     ubuntu: "{{_ubuntu2004image}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
-    feature_compatibility_versions: { previous: "4.4.29", next: "6.0" }
+    feature_compatibility_versions: { previous: "4.4.30", next: "6.0" }
   "6.0":
-    ubuntu: "{{_ubuntu2004image}}"
+    ubuntu: "{{_ubuntu2204image}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
-    feature_compatibility_versions: { previous: "5.0.31", next: "7.0" }
+    feature_compatibility_versions: { previous: "5.0.32", next: "7.0" }
   "7.0":
     ubuntu: "{{_ubuntu2204image}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
-    feature_compatibility_versions: { previous: "6.0.24", next: "8.0" }
+    feature_compatibility_versions: { previous: "6.0.27", next: "8.0" }
   "8.0":
     ubuntu: "{{_ubuntu2404image}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
-    feature_compatibility_versions: { previous: "7.0.21", next: "9.0" }
+    feature_compatibility_versions: { previous: "7.0.29", next: "8.0" } # 'next' is same as current for latest release
 
 mongodb:
-  version: "{{ mongo_version | default('7.0.21') }}"   # Latest versions: "3.4.24", "3.6.23", "4.0.28", "4.2.25", "4.4.29", "5.0.31", "6.0.24", "7.0.21", "8.0.11"
+  version: "{{ mongo_version | default('8.0.18') }}"   # Latest LTS versions: "3.4.24", "3.6.23", "4.0.28", "4.2.25", "4.4.30", "5.0.32", "6.0.27", "7.0.29", "8.0.18"
   sysuser: "mongodb"
   sysgroup: "mongodb"
   admin_password: "admin_password"

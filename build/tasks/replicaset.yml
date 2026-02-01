@@ -45,8 +45,8 @@
         - name: replicaset | debug mongod_status_initial_primary (if repset is configured)
           debug: { msg: "{{mongod_status_initial_primary}}" }
 
-        - name: replicaset | cluster_vars.dns_user_domain
-          debug: { msg: "{{ cluster_vars.dns_user_domain }}" }
+        - name: replicaset | cluster_vars.dns_nameserver_zone
+          debug: { msg: "{{ cluster_vars.dns_nameserver_zone }}" }
 
         - name: replicaset | ansible_play_hosts
           debug: { msg: "{{ ansible_play_hosts }}" }
@@ -65,7 +65,7 @@
               } catch (e) {
                 var status = { ok: 0 };
               }
-              var members = {{ ((ansible_play_hosts | map('extract', hostvars, ['ansible_host'])) if (cluster_vars.dns_user_domain is falsy)  else  (ansible_play_hosts | map('regex_replace', '^(.*)$', '\1' + '.' + cluster_vars.dns_user_domain))) | map('regex_replace', '^(.*)$', '\1' + ':' + mongodb.mongod_conf.net.port|string) | sort }};
+              var members = {{ ((ansible_play_hosts | map('extract', hostvars, ['ansible_host'])) if (cluster_vars.dns_server is falsy or cluster_vars.dns_nameserver_zone is falsy)  else  (ansible_play_hosts | map('regex_replace', '^(.*)$', '\1' ~ '.' ~ (cluster_vars.dns_subdomain ~ '.' if cluster_vars.dns_subdomain else '') ~ cluster_vars.dns_nameserver_zone ))) | map('regex_replace', '^(.*)$', '\1' ~ ':' + mongodb.mongod_conf.net.port|string) | sort }};
 
               function createMemberConfig(members, currentMembers) {
                 var memberConfig = [];
@@ -105,7 +105,7 @@
           retries: 30
           until: r__mongodb_replicaset is success
           register: r__mongodb_replicaset
-#          when: mongodb.version.split('.')[0:2] | join('.') is version('4.0', '<=' )    # NOTE: whilst v3.6 is supports mongodb_replicaset, if we're doing a redeploy to v3.6, we'll also be running this on v3.4 nodes.
+#          when: mongodb.version.split('.')[0:2] | join('.') is version('4.2', '<=' )    # NOTE: whilst v3.6 is supports mongodb_replicaset, if we're doing a redeploy to v3.6, we'll also be running this on v3.4 nodes.
 #
 #          ## NOTE - not supported on MongoDB 3.4
 #        - name: replicaset | initialise/create replicaset. We do reconfigure (instead of initialise) when the cluster already exists, so that redeploys are handled.  Need to set validate false because the module thinks only 2 replicas are valid.  Must be delegated to the primary when a replicaset already exists.
@@ -113,7 +113,7 @@
 #            login_user: "{{'admin' if is_repset_configured else omit}}"
 #            login_password: "{{mongodb.admin_password if is_repset_configured else omit}}"
 #            replica_set: "{{mongodb.mongod_conf.replication.replSetName}}"
-#            members: "{{ ((ansible_play_hosts | map('extract', hostvars, ['ansible_host'])) if (cluster_vars.dns_user_domain is falsy)  else  (ansible_play_hosts | map('regex_replace', '^(.*)$', '\\1' + '.' + cluster_vars.dns_user_domain))) | map('regex_replace', '^(.*)$', '\\1' + ':' + mongodb.mongod_conf.net.port|string) | sort }}"
+#            members: "{{ ((ansible_play_hosts | map('extract', hostvars, ['ansible_host'])) if (cluster_vars.dns_server is falsy or cluster_vars.dns_nameserver_zone is falsy)  else  (ansible_play_hosts | map('regex_replace', '^(.*)$', '\\1' ~ '.' ~ (cluster_vars.dns_subdomain ~ '.' if cluster_vars.dns_subdomain else '') ~ cluster_vars.dns_nameserver_zone))) | map('regex_replace', '^(.*)$', '\\1' ~ ':' ~ mongodb.mongod_conf.net.port|string) | sort }}"
 #            reconfigure: "{{'true' if is_repset_configured else 'false'}}"
 #            force: "{{'true' if (is_repset_invalid or is_repset_multiple_nodes_unconfigured) else 'false'}}"
 #            validate: false
@@ -121,7 +121,7 @@
 #          register: r__mongodb_replicaset
 #          retries: 30
 #          until: r__mongodb_replicaset is success
-#          when: mongodb.version.split('.')[0:2] | join('.') is version('4.0', '>' )    # NOTE: whilst v3.6 is supports mongodb_replicaset, if we're doing a redeploy to v3.6, we'll also be running this on v3.4 nodes.
+#          when: mongodb.version.split('.')[0:2] | join('.') is version('4.2', '>' )    # NOTE: whilst v3.6 is supports mongodb_replicaset, if we're doing a redeploy to v3.6, we'll also be running this on v3.4 nodes.
 
         - name: replicaset | debug r__mongodb_replicaset
           debug: msg="{{r__mongodb_replicaset}}"
