@@ -12,6 +12,8 @@ cluster_vars:
   image: "{{compatibility_matrix[mongodb.version.split('.')[0:2] | join('.')].ubuntu}}"
   dns_cloud_internal_domain: ""                               # The cloud-internal zone as defined by the cloud provider (e.g. GCP, AWS)
   dns_nameserver_zone: ""                                     # The apex zone that dns_server will operate on.  gcloud dns needs a trailing '.'.  Leave blank if no external DNS (use IPs only)
+  dns_subdomain: "{{cloud_type}}-{{region}}.{{buildenv}}"     # A user-defined subdomain part of the FDQN, (e.g. if more labels are required before the dns_nameserver_zone)
+  # dns_domain: (composed of dns_subdomain.dns_nameserver_zone) is defined in clusterverse/clusterverse/roles/_dependencies/defaults/main.yml
   dns_server: ""                                              # Specify DNS server. nsupdate, route53 or clouddns.  If empty string is specified, no DNS will be added.
   inventory_ip: "private"                                     # 'public' or 'private', (private in case we're operating in a private LAN).  If public, 'assign_public_ip' must be 'static' or 'dynamic'
   libvirt:
@@ -23,11 +25,11 @@ cluster_vars:
     cloudinit_userdata:
       users:
         - name: ansible
-          # The public key is derived from the private key (ssh_keygen -y -f <privkey>), which is either provided on the command line (via '--private-key', which creates the ansible variable 'ansible_ssh_private_key_file'), or as a variable in cluster_vars[buildenv].ssh_connection_cfg.host.ansible_ssh_private_key_file (anchored to _host_ssh_connection_cfg.ansible_ssh_private_key_contents), which itself can be derived from `ansible_ssh_private_key_file` environment variable.
+          # The public key is derived from the private key (ssh_keygen -y -f <privkey>), which is either provided on the command line (via '--private-key', which creates the ansible variable 'ansible_ssh_private_key_file'), or as a variable in cluster_vars[buildenv].ssh_connection_cfg.host.ansible_ssh_private_key_contents (anchored to _host_ssh_connection_cfg.ansible_ssh_private_key_contents), which itself can be derived from `ANSIBLE_SSH_PRIVATE_KEY_CONTENTS` environment variable.
           ssh_authorized_keys: [ "{%- if _host_ssh_connection_cfg.ansible_ssh_private_key_contents -%}{{ lookup('pipe', 'ssh-keygen -y -f /dev/stdin <<SSHFILE\n' ~ _host_ssh_connection_cfg.ansible_ssh_private_key_contents | replace('\\n','\n') ~ '\nSSHFILE') }}{%- elif ansible_ssh_private_key_file is defined -%}{{ lookup('pipe', 'ssh-keygen -y -f ' ~ ansible_ssh_private_key_file) }}{%- endif -%}" ]
           sudo: "ALL=(ALL) NOPASSWD:ALL"
           lock_passwd: false
           shell: /bin/bash
-      swap: { filename: /swap.img, size: auto, maxsize: 4G }  # Add new swap file
 #      system_info: { default_user: ~ }                        # Ensure there is no default_user (ubuntu)
 #      mounts: [ [ swap, null ] ]                              # Delete preexisting swap file
+      swap: { filename: /swap.img, size: auto, maxsize: 4G }  # Add new swap file

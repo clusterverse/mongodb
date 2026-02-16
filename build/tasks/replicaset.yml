@@ -65,7 +65,7 @@
               } catch (e) {
                 var status = { ok: 0 };
               }
-              var members = {{ ((ansible_play_hosts | map('extract', hostvars, ['ansible_host'])) if (cluster_vars.dns_server is falsy or cluster_vars.dns_nameserver_zone is falsy)  else  (ansible_play_hosts | map('regex_replace', '^(.*)$', '\1' ~ '.' ~ (cluster_vars.dns_subdomain ~ '.' if cluster_vars.dns_subdomain else '') ~ cluster_vars.dns_nameserver_zone ))) | map('regex_replace', '^(.*)$', '\1' ~ ':' + mongodb.mongod_conf.net.port|string) | sort }};
+              var members = {{ ((ansible_play_hosts | map('extract', hostvars, ['ansible_host'])) if (cluster_vars.dns_server is falsy or cluster_vars.dns_domain is falsy)  else  (ansible_play_hosts | map('regex_replace', '^(.*)$', '\1' + '.' + cluster_vars.dns_domain))) | map('regex_replace', '^(.*)$', '\1' + ':' + mongodb.mongod_conf.net.port|string) | sort }};
 
               function createMemberConfig(members, currentMembers) {
                 var memberConfig = [];
@@ -113,7 +113,7 @@
 #            login_user: "{{'admin' if is_repset_configured else omit}}"
 #            login_password: "{{mongodb.admin_password if is_repset_configured else omit}}"
 #            replica_set: "{{mongodb.mongod_conf.replication.replSetName}}"
-#            members: "{{ ((ansible_play_hosts | map('extract', hostvars, ['ansible_host'])) if (cluster_vars.dns_server is falsy or cluster_vars.dns_nameserver_zone is falsy)  else  (ansible_play_hosts | map('regex_replace', '^(.*)$', '\\1' ~ '.' ~ (cluster_vars.dns_subdomain ~ '.' if cluster_vars.dns_subdomain else '') ~ cluster_vars.dns_nameserver_zone))) | map('regex_replace', '^(.*)$', '\\1' ~ ':' ~ mongodb.mongod_conf.net.port|string) | sort }}"
+#            members: "{{ ((ansible_play_hosts | map('extract', hostvars, ['ansible_host'])) if (cluster_vars.dns_server is falsy or cluster_vars.dns_domain is falsy)  else  (ansible_play_hosts | map('regex_replace', '^(.*)$', '\\1' + '.' + cluster_vars.dns_domain))) | map('regex_replace', '^(.*)$', '\\1' + ':' + mongodb.mongod_conf.net.port|string) | sort }}"
 #            reconfigure: "{{'true' if is_repset_configured else 'false'}}"
 #            force: "{{'true' if (is_repset_invalid or is_repset_multiple_nodes_unconfigured) else 'false'}}"
 #            validate: false

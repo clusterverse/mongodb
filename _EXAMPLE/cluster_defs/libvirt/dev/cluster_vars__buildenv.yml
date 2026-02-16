@@ -16,8 +16,8 @@ cluster_vars:
     hosttype_vars:
       mongod:
         auto_volumes:
-          - {mountpoint: "{{ mongodb.mongod_conf.storage.dbPath }}", fstype: "xfs", opts: "noatime", size_gb: 2}
-          - {mountpoint: "{{ mongodb.mongod_conf.systemLog.path | dirname }}", fstype: "ext4", size_gb: 1}
+          - { mountpoint: "{{ mongodb.mongod_conf.storage.dbPath }}", fstype: "xfs", opts: "noatime", size_gb: 2 }
+          - { mountpoint: "{{ mongodb.mongod_conf.systemLog.path | dirname }}", fstype: "ext4", size_gb: 1 }
         flavor: { num_cpus: "2", memory_mb: "2048", autostart: true, firmware: EFI }   # firmware: EFI(default), or BIOS
         version: "{{mongodb.version | regex_replace('\\.', '_') | default('')}}"
         networks: [ &mongodb_NET1 { interface_type: "bridge", source_dev: "br0" } ]

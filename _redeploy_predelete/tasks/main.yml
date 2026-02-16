@@ -61,7 +61,7 @@
               } catch (e) {
                 var status = { ok: 0 };
               }
-              var members = {{ (((hosts_to_keep | default([]) | union([mongod_status_initial_primary_hostname])) | map('extract', hostvars, ['ansible_host'])) if (cluster_vars.dns_server is falsy or cluster_vars.dns_nameserver_zone is falsy)  else  hosts_to_keep | default([]) | union([mongod_status_initial_primary_hostname]) | map('regex_replace', '^(.*)$', '\1' ~ '.' ~ (cluster_vars.dns_subdomain ~ '.' if cluster_vars.dns_subdomain else '') ~ cluster_vars.dns_nameserver_zone)) | map('regex_replace', '^(.*)$', '\1' + ':' ~ mongodb.mongod_conf.net.port|string) | sort }};
+              var members = {{ (((hosts_to_keep | default([]) | union([mongod_status_initial_primary_hostname])) | map('extract', hostvars, ['ansible_host'])) if (cluster_vars.dns_server is falsy or cluster_vars.dns_domain is falsy)  else  hosts_to_keep | default([]) | union([mongod_status_initial_primary_hostname]) | map('regex_replace', '^(.*)$', '\1' + '.' + cluster_vars.dns_domain)) | map('regex_replace', '^(.*)$', '\1' + ':' + mongodb.mongod_conf.net.port|string) | sort }};
 
               function createMemberConfig(members, currentMembers) {
                 var memberConfig = [];
@@ -107,7 +107,7 @@
             login_user: "admin"
             login_password: "{{mongodb.admin_password}}"
             replica_set: "{{mongodb.mongod_conf.replication.replSetName}}"
-            members: "{{ (((hosts_to_keep | default([]) | union([mongod_status_initial_primary_hostname])) | map('extract', hostvars, ['ansible_host'])) if (cluster_vars.dns_server is falsy or cluster_vars.dns_nameserver_zone is falsy)  else  hosts_to_keep | default([]) | union([mongod_status_initial_primary_hostname]) | map('regex_replace', '^(.*)$', '\\1' ~ '.' ~ (cluster_vars.dns_subdomain ~ '.' if cluster_vars.dns_subdomain else '') ~ cluster_vars.dns_nameserver_zone)) | map('regex_replace', '^(.*)$', '\\1' ~ ':' ~ mongodb.mongod_conf.net.port|string) | sort }}"
+            members: "{{ (((hosts_to_keep | default([]) | union([mongod_status_initial_primary_hostname])) | map('extract', hostvars, ['ansible_host'])) if (cluster_vars.dns_server is falsy or cluster_vars.dns_domain is falsy)  else  hosts_to_keep | default([]) | union([mongod_status_initial_primary_hostname]) | map('regex_replace', '^(.*)$', '\\1' + '.' + cluster_vars.dns_domain)) | map('regex_replace', '^(.*)$', '\\1' + ':' + mongodb.mongod_conf.net.port|string) | sort }}"
             reconfigure: true
             force: "{{'true' if (hosts_to_remove__non_primary | length > 1) else 'false'}}"
             validate: false
@@ -323,7 +323,7 @@
       {%- if mongod_status_initial_primary is match('^\\d+\\.\\d+\\.\\d+\\.\\d+') -%}
         {{ ( (groups['all'] | map('extract', hostvars) | selectattr('ansible_host', 'defined') | selectattr('ansible_host', 'in', mongod_status_initial_nodes | map('regex_replace', ':.*$') ) | map(attribute='inventory_hostname')) | difference(hosts_to_remove | default([]) | json_query('[].name') ) | map('extract', hostvars) | map(attribute='ansible_host')  | map('regex_replace', '^(.*)$', '\1' + ':' +  mongodb.mongod_conf.net.port|string) ) | sort }}
       {%- else -%}
-        {{ mongod_status_initial_nodes | difference(hosts_to_remove | default([]) | json_query('[].name') | map('regex_replace', '^(.*)$', '\1' ~ '.' ~ (cluster_vars.dns_subdomain ~ '.' if cluster_vars.dns_subdomain else '') ~ cluster_vars.dns_nameserver_zone ~ ':' ~  mongodb.mongod_conf.net.port|string)) | sort }}
+        {{ mongod_status_initial_nodes | difference(hosts_to_remove | default([]) | json_query('[].name') | map('regex_replace', '^(.*)$', '\1' + '.' + cluster_vars.dns_domain + ':' +  mongodb.mongod_conf.net.port|string)) | sort }}
       {%- endif -%}
     hosts_to_keep: "{%- if mongod_status_initial_primary is match('^\\d+\\.\\d+\\.\\d+\\.\\d+') -%}{{ (groups['all'] | map('extract', hostvars) | selectattr('ansible_host', 'defined') | selectattr('ansible_host', 'in', mongodb_nodes_to_keep | map('regex_replace', ':.*$') ) | map(attribute='inventory_hostname')) }}{% else %}{{ mongodb_nodes_to_keep | map('regex_replace', '\\..*$') }}{% endif %}"
   when: hosts_to_remove | length > 0

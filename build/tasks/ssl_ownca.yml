@@ -22,13 +22,11 @@
         extended_key_usage_critical : true
         subject: |
           {%- set subj = {"OU": "CA"} -%}
-          {%- if (cluster_vars.dns_nameserver_zone is truthy) -%}
-            {%- set subj = { "DC": "{{_domain}}", "CN": "root.ca.{{_domain}}", "OU": "CA" } -%}
+          {%- if (cluster_vars.dns_domain is truthy) -%}
+            {%- set subj = { "DC": "{{cluster_vars.dns_domain}}", "CN": "root.ca.{{cluster_vars.dns_domain}}", "OU": "CA" } -%}
           {%- endif -%}
           {{ subj }}
         use_common_name_for_san: false
-      vars:
-        _domain: "{{ (cluster_vars.dns_subdomain + '.' if cluster_vars.dns_subdomain else '') + cluster_vars.dns_nameserver_zone }}"
       register: r__openssl_csr_pipe
 
     - name: ssl_ownca | Generate the self-signed CA certificate

@@ -23,9 +23,9 @@ cluster_vars:
     hosttype_vars:
       mongod:
         auto_volumes:
-          - {device_name: "/dev/sda1", mountpoint: "/", fstype: "ext4", volume_type: "gp3", volume_size: 8, encrypted: True, delete_on_termination: true}
-          - {device_name: "/dev/sdf", mountpoint: "{{ mongodb.mongod_conf.storage.dbPath }}", fstype: "xfs", opts: "noatime", volume_type: "gp3", volume_size: 2, encrypted: True, "delete_on_termination": true}
-          - {device_name: "/dev/sdg", mountpoint: "{{ mongodb.mongod_conf.systemLog.path | dirname }}", fstype: "ext4", volume_type: "gp3", volume_size: 1, encrypted: True, "delete_on_termination": true}
+          - {device_name: "/dev/sda1", mountpoint: "/", fstype: "ext4", volume_type: "gp3", volume_size: 8, encrypted: true, delete_on_termination: true}
+          - {device_name: "/dev/sdf", mountpoint: "{{ mongodb.mongod_conf.storage.dbPath }}", fstype: "xfs", opts: "noatime", volume_type: "gp3", volume_size: 2, encrypted: true, delete_on_termination: true}
+          - {device_name: "/dev/sdg", mountpoint: "{{ mongodb.mongod_conf.systemLog.path | dirname }}", fstype: "ext4", volume_type: "gp3", volume_size: 1, encrypted: true, delete_on_termination: true}
         flavor: m7a.medium
         version: "{{mongodb.version | regex_replace('\\.', '_') | default('')}}"
         vms_by_az: { a: 1, b: 1, c: 1 }

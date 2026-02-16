@@ -18,21 +18,19 @@
         extended_key_usage_critical: true
         subject_ordered:
           - { O: "MongoDB" }
-          - { CN: "{{ ansible_facts['default_ipv4']['address'] if (cluster_vars.dns_server is falsy or cluster_vars.dns_nameserver_zone is falsy) else ansible_facts['hostname'] + '.' + _domain}}" }
+          - { CN: "{{ ansible_facts['default_ipv4']['address'] if (cluster_vars.dns_server is falsy or cluster_vars.dns_nameserver_zone is falsy) else ansible_facts['hostname'] + '.' + cluster_vars.dns_domain}}" }
         use_common_name_for_san: false
         subject_alt_name: |-
           {%- set SANs = ['DNS:' + ansible_facts['hostname'],'IP:' + ansible_facts['default_ipv4']['address']] -%}
           {%- if (cluster_vars.dns_nameserver_zone is truthy) -%}
-            {%- set SANs = SANs + ['DNS:' + ansible_facts['hostname'] | regex_replace('-(?!.*-).*') + '.' + _domain] -%}
-            {%- set SANs = SANs + ['DNS:' + ansible_facts['hostname'] + '.' + _domain] -%}
+            {%- set SANs = SANs + ['DNS:' + ansible_facts['hostname'] | regex_replace('-(?!.*-).*') + '.' + cluster_vars.dns_domain] -%}
+            {%- set SANs = SANs + ['DNS:' + ansible_facts['hostname'] + '.' + cluster_vars.dns_domain] -%}
           {%- endif -%}
           {%- if (ansible_facts['default_ipv4']['address'] != ansible_host) -%}
             {%- set SANs = SANs + ['IP:' + ansible_host] -%}
           {%- endif -%}
           {{ SANs if (cluster_vars.dns_server is truthy and cluster_vars.dns_nameserver_zone is truthy) or (mongodb.version.split('.')[0:2] | join('.') is version('4.2', '>' )) else omit }}
         # NOTE: subject_alt_name is only added if DNS is valid or if MongoDB version is >4.2. (A bug in versions <4.2 means IP records are ignored in SAN, but it can sucessfully fallback to the CN IP.  We need to test for >4.2, because in a redeploy, the old version can be 4.0)
-      vars:
-        _domain: "{{ (cluster_vars.dns_subdomain + '.' if cluster_vars.dns_subdomain else '') + cluster_vars.dns_nameserver_zone }}"
       register: r__openssl_csr_pipe
 
     - name: r__openssl_csr_pipe
@@ -47,8 +45,8 @@
         selfsigned_not_after: "+3652d"       # Expiry in 10 years (incl leap years)
       register: r__x509_certificate_pipe
 
-    - name: r__x509_certificate_pipe
-      debug: msg={{r__x509_certificate_pipe}}
+#    - name: r__x509_certificate_pipe
+#      debug: msg={{r__x509_certificate_pipe}}
 
 - name: mongodb-tls | copy certs to remote
   block:
