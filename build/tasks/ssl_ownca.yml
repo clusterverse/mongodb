@@ -23,7 +23,7 @@
         subject: |
           {%- set subj = {"OU": "CA"} -%}
           {%- if (cluster_vars.dns_domain is truthy) -%}
-            {%- set subj = { "DC": "{{cluster_vars.dns_domain}}", "CN": "root.ca.{{cluster_vars.dns_domain}}", "OU": "CA" } -%}
+            {%- set subj = { "DC": cluster_vars.dns_domain, "CN": "root.ca."+cluster_vars.dns_domain, "OU": "CA" } -%}
           {%- endif -%}
           {{ subj }}
         use_common_name_for_san: false
