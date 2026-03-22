@@ -41,10 +41,10 @@ compatibility_matrix:
   "8.0":
     ubuntu: "{{_ubuntu2404image}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
-    feature_compatibility_versions: { previous: "7.0.30", next: "8.0" } # 'next' is same as current for latest release
+    feature_compatibility_versions: { previous: "7.0.31", next: "8.0" } # 'next' is same as current for latest release
 
 mongodb:
-  version: "{{ mongo_version | default('8.0.19') }}"   # Latest LTS versions: "3.4.24", "3.6.23", "4.0.28", "4.2.25", "4.4.30", "5.0.32", "6.0.27", "7.0.30", "8.0.19"
+  version: "{{ mongo_version | default('8.0.19') }}"   # Latest LTS versions: "3.4.24", "3.6.23", "4.0.28", "4.2.25", "4.4.30", "5.0.32", "6.0.27", "7.0.31", "8.0.20
   sysuser: "mongodb"
   sysgroup: "mongodb"
   admin_password: "admin_password"
