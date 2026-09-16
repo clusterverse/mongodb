@@ -14,7 +14,9 @@
         privatekey_content: "{{r__openssl_privatekey_pipe.privatekey}}"
         key_usage: ["digitalSignature", "keyEncipherment", "nonRepudiation"]
         key_usage_critical: true
-        extended_key_usage: ["clientAuth", "serverAuth"]
+        extended_key_usage:
+          - serverAuth              # Required for MongoDB server
+          - clientAuth              # Required for internal auth (replica set / x509)
         extended_key_usage_critical: true
         subject_ordered:
           - { O: "MongoDB" }

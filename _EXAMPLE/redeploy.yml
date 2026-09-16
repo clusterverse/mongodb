@@ -1,7 +1,8 @@
 ---
 
-- name: redeploy | Redeploy the cluster
+- name: clusterverse/redeploy | Redeploy the cluster
   hosts: localhost
+  gather_facts: false
   tasks:
     - assert: { that: "['clusterverse.clusterverse', 'dseeley.tasks_serial', 'dseeley.ansible_vault_pipe'] is subset(galaxy_collections.keys())", success_msg: "clusterverse collections dependencies are met", fail_msg: "Please ensure the clusterverse collections are installed: ansible-galaxy install -r requirements.yml)" }
       vars: { galaxy_collections: "{{lookup('pipe', 'ansible-galaxy collection list --format=json', errors='ignore') | from_json | json_query('*') | combine }}" }
@@ -18,13 +19,17 @@
       include_role: { name: "mongodb/verify" }
       vars: { verify_redeploy: "preamble" }
 
-    - name: redeploy | Run redeploy
-      include_role:
-        name: clusterverse.clusterverse.redeploy
+    - name: clusterverse/redeploy | Run redeploy
+      include_role: { name: clusterverse.clusterverse.redeploy }
       vars:
-        mainclusteryml: "cluster.yml"
+        deployplaybook: "deploy.yml"
         predeleterole: "mongodb/_redeploy_predelete"
 
     - name: redeploy | Verify the cluster's health *after* redeploy
       include_role: { name: "mongodb/verify" }
       vars: { verify_redeploy: "postamble" }
+
+- name: clusterverse/redeploy | clusterverse.readiness
+  hosts: localhost
+  gather_facts: false
+  tasks: [ { include_role: { name: "clusterverse.clusterverse.readiness", tasks_from: "clean_tmp.yml"}} ]

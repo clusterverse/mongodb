@@ -4,42 +4,42 @@ playbook_ca_yaml: "{{playbook_dir}}/cluster_defs/ssl_ca.yml"
 
 compatibility_matrix:
   "3.4":
-    ubuntu: "{{_ubuntu1604image}}"
+    ubuntu: "{{base_image_latest_ubuntu1604}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools', 'mongodb-org-shell']    # add 'mongodb-org-mongos' (for sharded clusters)
     pymongo_version: "3.12.3"
     feature_compatibility_versions: { previous: "3.4.24", next: "3.6" }     # 'previous' is uniquely set to current version here, because 3.4 is the oldest version we support
   "3.6":
-    ubuntu: "{{_ubuntu1804image}}"
+    ubuntu: "{{base_image_latest_ubuntu1804}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools', 'mongodb-org-shell']
     pymongo_version: "3.12.3"
     feature_compatibility_versions: { previous: "3.4.24", next: "4.0" }
   "4.0":
-    ubuntu: "{{_ubuntu1804image}}"
+    ubuntu: "{{base_image_latest_ubuntu1804}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools', 'mongodb-org-shell']
     pymongo_version: "3.12.3"
     feature_compatibility_versions: { previous: "3.6.23", next: "4.2" }
   "4.2":
-    ubuntu: "{{_ubuntu1804image}}"
+    ubuntu: "{{base_image_latest_ubuntu1804}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools', 'mongodb-org-shell']
     feature_compatibility_versions: { previous: "4.0.28", next: "4.4" }
   "4.4":
-    ubuntu: "{{_ubuntu2004image}}"
+    ubuntu: "{{base_image_latest_ubuntu2004}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
     feature_compatibility_versions: { previous: "4.2.25", next: "5.0" }
   "5.0":
-    ubuntu: "{{_ubuntu2004image}}"
+    ubuntu: "{{base_image_latest_ubuntu2004}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
     feature_compatibility_versions: { previous: "4.4.30", next: "6.0" }
   "6.0":
-    ubuntu: "{{_ubuntu2204image}}"
+    ubuntu: "{{base_image_latest_ubuntu2204}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
     feature_compatibility_versions: { previous: "5.0.32", next: "7.0" }
   "7.0":
-    ubuntu: "{{_ubuntu2204image}}"
+    ubuntu: "{{base_image_latest_ubuntu2204}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
     feature_compatibility_versions: { previous: "6.0.27", next: "8.0" }
   "8.0":
-    ubuntu: "{{_ubuntu2404image}}"
+    ubuntu: "{{base_image_latest_ubuntu2404}}"
     mongo_org_binaries: ['mongodb-org-server', 'mongodb-org-tools']
     feature_compatibility_versions: { previous: "7.0.31", next: "8.0" } # 'next' is same as current for latest release
 

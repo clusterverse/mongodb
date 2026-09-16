@@ -15,9 +15,6 @@ cluster_vars:
 #        ssh_args (proxy_only): "{{ ((' -o ProxyCommand=\"nc -X connect -x ' ~ (lookup('env', 'HTTP_PROXY') | regex_replace('^https?://', '')) ~ ' %h %p\"') if lookup('env', 'HTTP_PROXY') != '' else '') }}"
 #        ssh_args (bastion_and_proxy): "{{ '-o ProxyCommand=\"ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ./id_rsa__cv_bastion__' ~ cluster_name ~ ((' -o ProxyCommand=\\\"nc -X connect -x ' ~ (lookup('env', 'HTTP_PROXY') | regex_replace('^https?://', '')) ~ ' bastion.example.com 22\\\"') if lookup('env', 'HTTP_PROXY') != '' else '') ~ ' user@bastion.example.com -W %h:%p\"' }}"
 #        ssh_priv_key: "{{ lookup('env', 'BASTION_SSH_PRIVATE_KEY_CONTENTS') | default ('') }}"       # NOTE: This can either be sourced from environment (BASTION_SSH_PRIVATE_KEY_CONTENTS), or defined inline here (perhaps vaulted).
-    vpc_name: "test{{buildenv}}"
-    vpc_subnet_name_prefix: "{{buildenv}}-test-{{region}}"
-    key_name: "test__id_rsa"
     termination_protection: "no"
 
     hosttype_vars:
@@ -28,6 +25,12 @@ cluster_vars:
           - {device_name: "/dev/sdg", mountpoint: "{{ mongodb.mongod_conf.systemLog.path | dirname }}", fstype: "ext4", volume_type: "gp3", volume_size: 1, encrypted: true, delete_on_termination: true}
         flavor: m7a.medium
         version: "{{mongodb.version | regex_replace('\\.', '_') | default('')}}"
-        vms_by_az: { a: 1, b: 1, c: 1 }
+        region_vars:
+          eu-west-1:
+            vpc_name: "{{buildenv}}"
+            vpc_subnet_name_prefix: "{{buildenv}}-public-"
+            vms_by_zone: { a: 1, b: 1, c: 1 }
+#            base_image: "ami-0ca305251a019b06b"   # eu-west-1 26.04 amd64 hvm-ssd 20260503.  Ubuntu AMIs can be located at https://cloud-images.ubuntu.com/locator/
+#            flavor: t3a.micro     # optional per-region flavor (e.g. if arm64 is not available in a region)
 
 _host_ssh_connection_cfg: { <<: *host_ssh_connection_cfg }

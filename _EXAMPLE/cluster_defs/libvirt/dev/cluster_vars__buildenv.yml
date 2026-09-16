@@ -21,6 +21,8 @@ cluster_vars:
         flavor: { num_cpus: "2", memory_mb: "2048", autostart: true, firmware: EFI }   # firmware: EFI(default), or BIOS
         version: "{{mongodb.version | regex_replace('\\.', '_') | default('')}}"
         networks: [ &mongodb_NET1 { interface_type: "bridge", source_dev: "br0" } ]
-        vms_by_az: { a: 1, b: 1, c: 1 }
+        region_vars:
+          dougalab-east:
+            vms_by_zone: { a: 1, b: 1, c: 1 }
 
 _host_ssh_connection_cfg: { <<: *host_ssh_connection_cfg }

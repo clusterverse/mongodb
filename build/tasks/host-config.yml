@@ -23,12 +23,12 @@
 
 - name: host-config | set basic sysctls
   become: true
-  sysctl:
+  ansible.posix.sysctl:
     name: "{{ item.name }}"
     value: "{{ item.value }}"
     reload: true
     sysctl_set: true
-    state: present
+    sysctl_file: "/etc/sysctl.d/99-mongodb__{{ item.name | regex_replace('\\.','_') }}.conf"
   with_items:
     - {name: vm.swappiness,         value: "{{ 1 if (cluster_vars.cloud_type == 'aws' and 'swap:' in cluster_vars['user_data']) or (cluster_vars.cloud_type == 'libvirt' and 'swap' in cluster_vars['libvirt']['cloudinit_userdata']) else 0 }}"}
     - {name: vm.zone_reclaim_mode,  value: 0}
@@ -38,12 +38,12 @@
 
 - name: host-config | set network sysctls
   become: true
-  sysctl:
+  ansible.posix.sysctl:
     name: "{{ item.name }}"
     value: "{{ item.value }}"
     reload: true
     sysctl_set: true
-    state: present
+    sysctl_file: "/etc/sysctl.d/99-mongodb__{{ item.name | regex_replace('\\.','_') }}.conf"
   with_items:
     - {name: net.core.somaxconn,                  value: 4096}
     - {name: net.ipv4.tcp_keepalive_intvl,        value: 30}
